@@ -1,37 +1,76 @@
-
-use bank::{bank::Bank, transaction::Transaction};
-use currency::currency::{Fiat, Crypto};
+use api::{account::{create_account, get_accounts, get_account, enable_account, disable_account, get_fiats, get_cryptos, balances}, fiat::{create_fiat, get_fiat, fiat_deposit, fiat_confirm_deposit, fiat_withdrawal, fiat_release_withdrawal}, crypto::{get_crypto, create_crypto, crypto_deposit, crypto_confirm_deposit, crypto_withdrawal, crypto_release_withdrawal}};
+use chrono::Local;
+use domain::{ledger::ledger::{Fiat, Crypto}, account::account::Account, transaction::transaction::Transaction, asset::asset::AssetManager};
 use mongo::Data;
-use wallet::wallet::Wallet;
+use response::error::ErrorResponse;
+use rocket::{Request, launch, http::Method, catchers, routes, catch, serde::json::Json};
+use dotenv::dotenv;
+use rocket_cors::{CorsOptions, AllowedOrigins};
 
-pub mod currency;
-pub mod asset;
-pub mod wallet;
-mod bank;
 mod mongo;
+mod domain;
+mod response;
+mod api;
+mod dto;
 
-
-#[tokio::main]
-async fn main() {
+#[launch]
+async fn rocket() -> _ {
+    dotenv().ok();
     let client = match Data::new("mongodb://localhost:27017", "My Bank", "bank").await {
         Ok(client) => client,
         Err(e) => {
-            println!("Error creating client: {}", e);
-            return;
+            panic!("Error creating client: {}", e);
         }
     };
-    let fiat_db = client.get_repo::<Fiat>("fiat_vault", "account_number".to_string()).unwrap();
-    let crypto_db = client.get_repo::<Crypto>("crypto_vault", "account_number".to_string()).unwrap();
-    // let asset_db = client.get_repo::<Asset>("asset_vault").unwrap();
-    let wallet_db = client.get_repo::<Wallet>("wallet", "account_number".to_string()).unwrap();
+    let fiat_db = client.get_repo::<Fiat>("fiat_vault", "id".to_string()).unwrap();
+    let crypto_db = client.get_repo::<Crypto>("crypto_vault", "id".to_string()).unwrap();
+    let wallet_db = client.get_repo::<Account>("wallet", "account_number".to_string()).unwrap();
     let transaction_db = client.get_repo::<Transaction>("transaction", "tx_id".to_string()).unwrap();
-    let mut my_awesome_bank = Bank::new("MAB".to_string(),"123".to_string(), wallet_db, fiat_db, crypto_db, transaction_db);
-    
-    for _ in 0..2{
-        let wallet = my_awesome_bank.create_wallet().await.unwrap();
-        my_awesome_bank.deposit_in(&wallet.account_number, 100.0, "USD".to_owned()).await.unwrap();
-        my_awesome_bank.confirm_deposit(&wallet.account_number, 75.0, "USD".to_owned()).await.unwrap();
-        my_awesome_bank.withdraw_from(&wallet.account_number, 50.0, "USD".to_owned()).await.unwrap();
-        my_awesome_bank.confirm_withdraw(&wallet.account_number, 25.0, "USD".to_owned()).await.unwrap();
-    }
+    let asset_manager = AssetManager::new();
+    let cors = CorsOptions::default()
+    .allowed_origins(AllowedOrigins::all())
+    .allowed_methods(
+        vec![Method::Get, Method::Post, Method::Patch, Method::Delete]
+            .into_iter()
+            .map(From::from)
+            .collect(),
+    )
+    .allow_credentials(true);
+
+    rocket::build()
+    .manage(cors.to_cors())
+    .manage(fiat_db)
+    .manage(crypto_db)
+    .manage(asset_manager)
+    .manage(wallet_db)
+    .manage(transaction_db)
+    .mount("/v1/accounts", routes![create_account, get_accounts, get_account, disable_account, enable_account,get_fiats, get_cryptos, balances])
+    .mount("/v1/fiats", routes![create_fiat, get_fiat, fiat_deposit, fiat_confirm_deposit, fiat_withdrawal, fiat_release_withdrawal])
+    .mount("/v1/cryptos", routes![create_crypto, get_crypto, crypto_deposit, crypto_confirm_deposit, crypto_withdrawal, crypto_release_withdrawal])
+    .register(
+        "/",
+        catchers![unauthorized, not_found, internal_sever_error,],
+    )
 }
+
+#[catch(401)]
+pub fn unauthorized() -> Json<ErrorResponse> { 
+    Json(ErrorResponse { cause: "UNAUTHORIZED".to_string(), 
+    message: "Endpoint call without valid token".to_string(),
+    date: Local::now().format("%Y-%m-%d %H:%M:%S").to_string() })
+}
+
+#[catch(404)]
+pub fn not_found(_req: &Request) -> Json<ErrorResponse> {
+    Json(ErrorResponse { cause: "NOT FOUND".to_string(), 
+    message: "Endpoint not found".to_string(),
+    date: Local::now().format("%Y-%m-%d %H:%M:%S").to_string() })
+}
+
+#[catch(500)]
+pub fn internal_sever_error() -> Json<ErrorResponse> {
+    Json(ErrorResponse { cause: "INTERNAL SERVER ERROR".to_string(), 
+    message: "Something went wrong :(".to_string(),
+    date: Local::now().format("%Y-%m-%d %H:%M:%S").to_string() })
+}
+

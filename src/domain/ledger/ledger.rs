@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::asset::asset::{ AssetType, Asset};
+use crate::domain::asset::asset::{AssetType, Asset};
 
 pub trait FungibleTradeable {
     fn deposit(&mut self, amount: f64)->Result<(),String>;
@@ -12,6 +12,7 @@ pub trait FungibleTradeable {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Fiat {
+    pub id: String,
     pub account_number: String,
     pub asset_type: AssetType,
     pub asset: Asset,
@@ -23,10 +24,14 @@ impl Fiat {
         if account_id.len() == 0 {
             return Err("Account ID cannot be empty".to_string());
         }
+        let mut id = "".to_string();
+        id.push_str(&account_id);
+        id.push_str(&asset.symbol);
         match asset.asset_type {
             AssetType::Fiat => Ok(Fiat {
+                id,
                 account_number: account_id,
-                asset: asset,
+                asset,
                 asset_type: AssetType::Fiat,
                 balance: 0.0,
                 hold: 0.0,
@@ -86,6 +91,7 @@ impl FungibleTradeable for Fiat {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Crypto {
+    pub id: String,
     pub account_number: String,
     pub asset_type: AssetType,
     pub network: String,
@@ -99,8 +105,12 @@ impl Crypto {
         if account_id.len() == 0 {
             panic!("Account ID cannot be empty");
         }
+        let mut id = "".to_string();
+        id.push_str(&account_id);
+        id.push_str(&asset.symbol);
         match asset.asset_type {
             AssetType::Crypto => Ok(Crypto {
+                id,
                 account_number: account_id,
                 address_in_chain,
                 network,

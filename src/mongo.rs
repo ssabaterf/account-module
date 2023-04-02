@@ -2,7 +2,7 @@ use async_std::stream::StreamExt;
 use async_trait::async_trait;
 use mongodb::{
     bson::{self, doc},
-    options::ClientOptions,
+    options::{ClientOptions, FindOptions},
     Client, Collection, Database,
 };
 use serde::{de::DeserializeOwned, Serialize};
@@ -10,7 +10,6 @@ use std::borrow::Borrow;
 pub struct Data {
     pub client: Client,
     pub db: Database,
-    uri: String,
 }
 
 impl Data {
@@ -28,7 +27,6 @@ impl Data {
         Ok(Data {
             client: client,
             db: db,
-            uri: uri.to_string(),
         })
     }
     pub fn get_repo<T: Send + Sync + Clone + Serialize + DeserializeOwned + Unpin + 'static>
@@ -37,7 +35,6 @@ impl Data {
         Ok(Repository {
             key_field: key_field,
             collection: collection,
-            uri: self.uri.clone(),
         })
     }
 }
@@ -45,18 +42,19 @@ pub struct Repository<T>
 where T: Send + Sync + Clone + Serialize + DeserializeOwned + Unpin + 'static{
     key_field: String,
     collection: Collection<T>,
-    uri: String,
 }
 #[async_trait]
 pub trait Crud<T>: Send + Sync {
     async fn create_many(&self, new_entities: Vec<T>) -> Result<Vec<String>, String>;
     async fn create(&self, new_entity: T) -> Result<String, String>;
-    async fn get_all(&self) -> Result<Vec<T>, String>;
+    async fn get_all(&self, skip:usize, limit:usize) -> Result<Vec<T>, String>;
     async fn get_by_id(&self, id: &str) -> Result<T, String>;
     async fn update_by_id(&self, id: &str, edit_entity: T) -> Result<T, String>;
     async fn delete_by_id(&self, id: &str) -> Result<bool, String>;
     async fn get_by_fields(&self, field: Vec<String>, value: Vec<String>) -> Result<Vec<T>, String>;
+    async fn count(&self)->u64;
 }
+
 #[async_trait]
 impl<T> Crud<T> for Repository<T>
 where
@@ -124,13 +122,18 @@ where
         }
     }
 
-    async fn get_all(&self) -> Result<Vec<T>, String> {
-        let mut cursors = match self.collection.find(None, None).await {
+    async fn get_all(&self, skip:usize, limit:usize) -> Result<Vec<T>, String> {
+        let find_options = FindOptions::builder()
+        .skip(skip as u64)
+        .limit(limit as i64)
+        .build();
+    
+        let mut cursors = match self.collection.find(None, find_options).await {
             Ok(cursors) => cursors,
             Err(e) => return Err(format!("Error getting entities: {}", e)),
         };
-        let mut entities: Vec<T> = Vec::new();
 
+        let mut entities: Vec<T> = Vec::new();
         while let Some(entity) = cursors.next().await {
             let entity = match entity {
                 Ok(entity) => entity,
@@ -162,5 +165,11 @@ where
             entities.push(entity);
         };
         Ok(entities)
+    }
+    async fn count(&self)->u64{
+        match self.collection.count_documents(None, None).await {
+            Ok(count) => count,
+            _ => return 0,
+        }
     }
 }
