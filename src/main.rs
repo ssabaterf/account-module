@@ -6,7 +6,7 @@ use response::error::ErrorResponse;
 use rocket::{Request, launch, http::Method, catchers, routes, catch, serde::json::Json};
 use dotenv::dotenv;
 use rocket_cors::{CorsOptions, AllowedOrigins};
-
+use std::env;
 mod mongo;
 mod domain;
 mod response;
@@ -16,7 +16,17 @@ mod dto;
 #[launch]
 async fn rocket() -> _ {
     dotenv().ok();
-    let client = match Data::new("mongodb://localhost:27017", "My Bank", "bank").await {
+    
+    let db_uri = match env::var("DBURI") {
+        Ok(v) => v,
+        Err(_) => panic!("Error loading env variable: DBURI"),
+    };
+    let db_name = match env::var("DBNAME") {
+        Ok(v) => v.to_string(),
+        Err(_) => panic!("Error loading env variable: DBNAME"),
+    };
+    
+    let client = match Data::new(&db_uri, "My Bank", &db_name).await {
         Ok(client) => client,
         Err(e) => {
             panic!("Error creating client: {}", e);
