@@ -17,7 +17,7 @@ RUN cargo build --release
 FROM gcr.io/distroless/cc-debian10
 
 # Set the working directory to the root of the file system
-WORKDIR /
+WORKDIR /app
 
 # Copy the binary from the builder container to the final image
 COPY --from=builder /app/target/release/account-module .
