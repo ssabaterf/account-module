@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::domain::asset::asset::{AssetType, Asset};
+use super::asset::{Asset, AssetType};
 
 pub trait FungibleTradeable {
     fn deposit(&mut self, amount: f64)->Result<(),String>;
@@ -21,7 +21,7 @@ pub struct Fiat {
 }
 impl Fiat {
     pub fn new(account_id:String, asset: Asset)->Result<Fiat,String> {
-        if account_id.len() == 0 {
+        if account_id.is_empty() {
             return Err("Account ID cannot be empty".to_string());
         }
         let mut id = "".to_string();
@@ -102,7 +102,7 @@ pub struct Crypto {
 }
 impl Crypto {
     pub fn new(account_id:String, asset: Asset, network: String, address_in_chain: String)->Result<Crypto,String> {
-        if account_id.len() == 0 {
+        if account_id.is_empty() {
             panic!("Account ID cannot be empty");
         }
         let mut id = "".to_string();
@@ -114,7 +114,7 @@ impl Crypto {
                 account_number: account_id,
                 address_in_chain,
                 network,
-                asset: asset,
+                asset,
                 asset_type: AssetType::Crypto,
                 balance: 0.0,
                 hold: 0.0,

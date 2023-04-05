@@ -128,6 +128,6 @@ impl AssetManager {
                 return Some(asset.clone());
             }
         }
-        return None;
+        None
     }
 }
