@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use rocket::{post, State, serde::json::Json, http::Status, get};
 
-use crate::{domain::{account::account::{Account, Balance}, asset::asset::AssetManager, ledger::ledger::{Fiat, Crypto}}, mongo::{Repository, Crud}, response::{error::ErrorResponse, custom::Pagination}};
+use crate::{domain::{account::{Account, Balance}, ledger::{Fiat, Crypto}, asset::AssetManager}, mongo::{Repository, Crud}, response::{error::ErrorResponse, custom::Pagination}};
 
 #[post("/", format = "json")]
 pub async fn create_account(
@@ -11,14 +11,14 @@ pub async fn create_account(
     crypto_db: &State<Repository<Crypto>>,
     asset_master: &State<AssetManager>,
 ) -> Result<Json<Account>, (Status, Json<ErrorResponse>)> {
-    let mut account = match Account::init(&asset_master, &vec!["USD".to_string(), "BTC".to_string(), "EUR".to_string()]) {
+    let mut account = match Account::init(asset_master, &vec!["USD".to_string(), "BTC".to_string(), "EUR".to_string()]) {
         Ok(account) => account,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e)))),
     };
     
     match account_db.create(account.clone()).await {
         Ok(_) => (),
-        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e.to_string())))),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e)))),
     }
 
     for key in account.accounts_fiat.keys() {
@@ -29,11 +29,11 @@ pub async fn create_account(
         let fiat_result = Fiat::new(account.account_number.clone(), asset);
         let fiat = match fiat_result {
             Ok(fiat) => fiat,
-            Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e.to_string())))),
+            Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e)))),
         };
         match fiat_db.create(fiat).await {
             Ok(_) => (),
-            Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e.to_string())))),
+            Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e)))),
         }
     }
 
@@ -45,18 +45,18 @@ pub async fn create_account(
         let crypto_result = Crypto::new(account.account_number.clone(), asset, "network".to_string(),"address".to_string());
         let crypto = match crypto_result {
             Ok(crypto) => crypto,
-            Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e.to_string())))),
+            Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e)))),
         };
         match crypto_db.create(crypto).await {
             Ok(_) => (),
-            Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e.to_string())))),
+            Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e)))),
         }
     }
 
     account.active = true;
     match account_db.update_by_id(&account.account_number, account.clone()).await {
         Ok(_) => (),
-        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e.to_string())))),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e)))),
     }
     Ok(Json(account))
 }
@@ -67,17 +67,11 @@ pub async fn get_accounts(
     skip: Option<usize>,
     limit: Option<usize>,
 ) -> Result<Json<Pagination<Account>>, (Status, Json<ErrorResponse>)> {
-    let skip_value = match skip {
-        Some(skip) => skip,
-        None => 0,
-    };
-    let limit_value = match limit {
-        Some(limit) => limit,
-        None => 10,
-    };
+    let skip_value = skip.unwrap_or(0);
+    let limit_value = limit.unwrap_or(10);
     let accounts = match account_db.get_all(skip_value, limit_value).await {
         Ok(accounts) => accounts,
-        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e.to_string())))),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e)))),
     };
     let pagination = Pagination{
         skip: skip_value as u64,
@@ -95,7 +89,7 @@ pub async fn get_account(
 ) -> Result<Json<Account>, (Status, Json<ErrorResponse>)> {
     let account = match account_db.get_by_id(&id).await {
         Ok(account) => account,
-        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e.to_string())))),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e)))),
     };
     Ok(Json(account))
 }
@@ -107,12 +101,12 @@ pub async fn disable_account(
 ) -> Result<Json<Account>, (Status, Json<ErrorResponse>)> {
     let mut account = match account_db.get_by_id(&id).await {
         Ok(account) => account,
-        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e.to_string())))),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e)))),
     };
     account.active = false;
     match account_db.update_by_id(&id, account.clone()).await {
         Ok(_) => (),
-        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e.to_string())))),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e)))),
     };
     Ok(Json(account))
 }
@@ -124,12 +118,12 @@ pub async fn enable_account(
 ) -> Result<Json<Account>, (Status, Json<ErrorResponse>)> {
     let mut account = match account_db.get_by_id(&id).await {
         Ok(account) => account,
-        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e.to_string())))),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e)))),
     };
     account.active = true;
     match account_db.update_by_id(&id, account.clone()).await {
         Ok(_) => (),
-        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e.to_string())))),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e)))),
     };
     Ok(Json(account))
 }
@@ -141,7 +135,7 @@ pub async fn get_fiats(
 ) -> Result<Json<Vec<Fiat>>, (Status, Json<ErrorResponse>)> {
     match fiat_db.get_by_fields(vec!["account_number".to_string()],vec![id]).await {
         Ok(fiats) => Ok(Json(fiats)),
-        Err(e) => Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e.to_string())))),
+        Err(e) => Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     }
 }
 
@@ -152,7 +146,7 @@ pub async fn get_cryptos(
 ) -> Result<Json<Vec<Crypto>>, (Status, Json<ErrorResponse>)> {
     match crypto_db.get_by_fields(vec!["account_number".to_string()],vec![id]).await {
         Ok(fiats) => Ok(Json(fiats)),
-        Err(e) => Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e.to_string())))),
+        Err(e) => Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     }
 }
 
@@ -165,17 +159,17 @@ pub async fn balances(
 ) -> Result<Json<HashMap<String,Balance>>, (Status, Json<ErrorResponse>)> {
     match account_db.get_by_id(&id).await {
         Ok(account) => account,
-        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e.to_string())))),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), e)))),
     };
 
     let cryptos= match crypto_db.get_by_fields(vec!["account_number".to_string()],vec![id.clone()]).await {
         Ok(cryptos) => cryptos,
-        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e.to_string())))),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
 
     let fiats= match fiat_db.get_by_fields(vec!["account_number".to_string()],vec![id]).await {
         Ok(fiats) => fiats,
-        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e.to_string())))),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
 
     Ok(Json(Account::balance(fiats, cryptos)))

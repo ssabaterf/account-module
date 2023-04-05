@@ -1,4 +1,4 @@
-use std::time::SystemTime;
+use std::{time::SystemTime, fmt::Display};
 
 use chrono::{DateTime, Utc};
 use rand::{distributions::Alphanumeric, Rng};
@@ -12,13 +12,13 @@ pub enum TransactionType {
     Transfer,
     Trading,
 }
-impl TransactionType {
-    pub fn to_string(&self) -> String {
+impl Display for TransactionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TransactionType::Deposit => "Deposit".to_string(),
-            TransactionType::Withdraw => "Withdraw".to_string(),
-            TransactionType::Transfer => "Transfer".to_string(),
-            TransactionType::Trading => "Trading".to_string(),
+            TransactionType::Deposit => write!(f, "Deposit"),
+            TransactionType::Withdraw => write!(f, "Withdraw"),
+            TransactionType::Transfer => write!(f, "Transfer"),
+            TransactionType::Trading => write!(f, "Trading"),
         }
     }
 }
@@ -30,14 +30,14 @@ pub enum TransactionStatus {
     Cancelled,
     Failed,
 }
-impl TransactionStatus {
-    pub fn to_string(&self) -> String {
+impl Display for TransactionStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TransactionStatus::Pending => "Pending".to_string(),
-            TransactionStatus::Confirmed => "Confirmed".to_string(),
-            TransactionStatus::Completed => "Completed".to_string(),
-            TransactionStatus::Cancelled => "Cancelled".to_string(),
-            TransactionStatus::Failed => "Failed".to_string(),
+            TransactionStatus::Pending => write!(f, "Pending"),
+            TransactionStatus::Confirmed => write!(f, "Confirmed"),
+            TransactionStatus::Completed => write!(f, "Completed"),
+            TransactionStatus::Cancelled => write!(f, "Cancelled"),
+            TransactionStatus::Failed => write!(f, "Failed"),
         }
     }
 }
@@ -147,8 +147,8 @@ impl Transaction {
     }
     pub fn complete_transaction(&mut self, external_id: String)->Result<(),String> {
         if self.transaction_status == TransactionStatus::Confirmed {
-            self.external_id = Some(external_id);
-            self.create_hash_event("external_id".to_string(), self.external_id.clone().unwrap());
+            self.external_id = Some(external_id.clone());
+            self.create_hash_event("external_id".to_string(), external_id);
             self.transaction_status = TransactionStatus::Completed;
             self.create_hash_event(
                 "transaction_status".to_string(),
@@ -162,8 +162,8 @@ impl Transaction {
     }
     pub fn fail_transaction(&mut self, external_id: String)->Result<(),String> {
         if self.transaction_status == TransactionStatus::Confirmed {
-            self.external_id = Some(external_id);
-            self.create_hash_event("external_id".to_string(), self.external_id.clone().unwrap());
+            self.external_id = Some(external_id.clone());
+            self.create_hash_event("external_id".to_string(), external_id);
             self.transaction_status = TransactionStatus::Failed;
             self.create_hash_event(
                 "transaction_status".to_string(),

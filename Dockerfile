@@ -11,7 +11,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY src/ ./src/
 
 # Build the application with the optimizations enabled
-RUN cargo build --release
+RUN cargo build --release --locked
 
 # Use the Distroless image as the base image
 FROM gcr.io/distroless/cc-debian10
@@ -23,4 +23,4 @@ WORKDIR /app
 COPY --from=builder /app/target/release/account-module .
 
 # Start the application
-CMD ["/account-module"]
+CMD ["/app/account-module"]

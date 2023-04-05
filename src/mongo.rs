@@ -25,16 +25,16 @@ impl Data {
         };
         let db = client.database(database);
         Ok(Data {
-            client: client,
-            db: db,
+            client,
+            db,
         })
     }
     pub fn get_repo<T: Send + Sync + Clone + Serialize + DeserializeOwned + Unpin + 'static>
     (&self, collection: &str, key_field:String)-> Result<Repository<T>, String> {
         let collection = self.db.collection(collection);
         Ok(Repository {
-            key_field: key_field,
-            collection: collection,
+            key_field,
+            collection,
         })
     }
 }
@@ -61,31 +61,37 @@ where
     T: Send + Sync + Clone + Serialize + DeserializeOwned + Unpin + 'static,
 {
     async fn create_many(&self, entities: Vec<T>) -> Result<Vec<String>, String> {
-        let result = self.collection.insert_many(entities, None).await.ok().expect("Error creating entities");
+        let result = match self.collection.insert_many(entities, None).await{
+            Ok(result) => result,
+            Err(e) => return Err(format!("Error creating entities: {}", e))
+        };
         let ids = result.inserted_ids.iter().map(|id| id.1.to_string()).collect();
         Ok(ids)
     }
     async fn create(&self, new_entity: T) -> Result<String, String> {
-        let entity = self
+        let entity = match self
             .collection
             .insert_one(new_entity.borrow(), None)
-            .await
-            .ok()
-            .expect("Error creating entity")
-            .inserted_id
-            .to_string();
-        Ok(entity)
-    }
+            .await{
+                Ok(entity) => entity,
+                Err(e) => return Err(format!("Error creating entity: {}", e))
+            };
+            Ok(entity.inserted_id.to_string())
+        }
 
     async fn get_by_id(&self, id: &str) -> Result<T, String> {
         let filter = doc! {&self.key_field: id};
-        let entity_detail = self
+        let entity_detail = match self
             .collection
             .find_one(filter, None)
-            .await
-            .ok()
-            .expect("Error getting entity's detail");
-        Ok(entity_detail.expect("Entity not found"))
+            .await{
+                Ok(entity_detail) => match entity_detail{
+                    Some(entity_detail) => entity_detail,
+                    None => return Err("Entity not found".to_uppercase())
+                },
+                Err(e) => return Err(format!("Error getting entity: {}", e))
+            };
+        Ok(entity_detail)
     }
 
     async fn update_by_id(&self, id: &str, edit_entity: T) -> Result<T, String> {
@@ -100,7 +106,11 @@ where
                 Err(e) => return Err(format!("Error updating entity: {}", e))
             };
         if updated_doc.matched_count > 0 {
-            Ok(self.get_by_id(id).await.unwrap())
+            let element = match self.get_by_id(id).await {
+                Ok(id) => id,
+                Err(e) => return Err(format!("Error updating entity: {}", e))
+            };
+            Ok(element)
         } else {
             Err("Error updating entity".to_uppercase())
         }
@@ -109,12 +119,13 @@ where
     async fn delete_by_id(&self, id: &str) -> Result<bool, String> {
         let filter = doc! {&self.key_field: id};
 
-        let entity_detail = self
+        let entity_detail = match self
             .collection
             .delete_one(filter, None)
-            .await
-            .ok()
-            .expect("Error deleting entity");
+            .await{
+                Ok(entity_detail) => entity_detail,
+                Err(e) => return Err(format!("Error deleting entity: {}", e))
+            };
         if entity_detail.deleted_count > 0 {
             Ok(true)
         } else {

@@ -3,8 +3,9 @@ use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Borrow, collections::HashMap};
 
-use crate::domain::{asset::asset::{AssetManager, AssetType, Asset}, ledger::ledger::{Crypto, Fiat}};
+use crate::domain::{asset::{AssetManager, AssetType, Asset}};
 
+use super::ledger::{Crypto, Fiat};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Balance {
     pub asset: String,
@@ -36,7 +37,7 @@ impl Account {
         for asset in default_assets {
             let default_asset = match asset_master.get_by_symbol(asset.borrow()) {
                 Some(asset) => asset,
-                None => return Err(format!("{} {}", asset, "Asset not found".to_string())),
+                None => return Err(format!("{} {}", asset, "Asset not found")),
             };
             match default_asset.asset_type {
                 AssetType::Fiat => account
@@ -50,7 +51,7 @@ impl Account {
         // todo!("Add constraints to account");
         // todo!("Add account to database");
         // todo!("Crate currency account for each asset");
-        return Ok(account);
+        Ok(account)
     }
     pub fn balance(fiats: Vec<Fiat>, crypto: Vec<Crypto>) -> HashMap<String, Balance> {
         let mut balances = HashMap::new();
@@ -63,7 +64,6 @@ impl Account {
                     hold: fiat.hold,
                 },
             );
-            break;
         }
         for crypto in crypto {
             balances.insert(
@@ -74,13 +74,12 @@ impl Account {
                     hold: crypto.hold,
                 },
             );
-            break;
         }
         balances
     }
     pub fn add_fiat(&mut self, asset: Asset)->Account{
         match asset.asset_type {
-            AssetType::Fiat => self.accounts_fiat.insert(asset.symbol.clone(), self.account_number.clone()),
+            AssetType::Fiat => self.accounts_fiat.insert(asset.symbol, self.account_number.clone()),
             AssetType::Crypto => return self.clone(),
         };
         self.clone()
@@ -88,7 +87,7 @@ impl Account {
     pub fn add_crypto(&mut self, asset: Asset)->Account{
         match asset.asset_type {
             AssetType::Fiat => return self.clone(),
-            AssetType::Crypto => self.accounts_crypto.insert(asset.symbol.clone(), self.account_number.clone()),
+            AssetType::Crypto => self.accounts_crypto.insert(asset.symbol, self.account_number.clone()),
         };
         self.clone()
     }

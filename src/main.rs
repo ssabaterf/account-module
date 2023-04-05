@@ -1,6 +1,6 @@
 use api::{account::{create_account, get_accounts, get_account, enable_account, disable_account, get_fiats, get_cryptos, balances}, fiat::{create_fiat, get_fiat, fiat_deposit, fiat_confirm_deposit, fiat_withdrawal, fiat_release_withdrawal}, crypto::{get_crypto, create_crypto, crypto_deposit, crypto_confirm_deposit, crypto_withdrawal, crypto_release_withdrawal}};
 use chrono::Local;
-use domain::{ledger::ledger::{Fiat, Crypto}, account::account::Account, transaction::transaction::Transaction, asset::asset::AssetManager};
+use domain::{ledger::{Fiat, Crypto}, account::Account, transaction::Transaction, asset::AssetManager};
 use mongo::Data;
 use response::error::ErrorResponse;
 use rocket::{Request, launch, http::Method, catchers, routes, catch, serde::json::Json};
@@ -18,11 +18,15 @@ async fn rocket() -> _ {
     dotenv().ok();
     
     let db_uri = match env::var("DBURI") {
-        Ok(v) => v,
+        Ok(v) => {
+            println!("DBURI: {}", &v);
+            v},
         Err(_) => panic!("Error loading env variable: DBURI"),
     };
     let db_name = match env::var("DBNAME") {
-        Ok(v) => v.to_string(),
+        Ok(v) => {
+            println!("DBNAME: {}", &v);
+            v},
         Err(_) => panic!("Error loading env variable: DBNAME"),
     };
     
