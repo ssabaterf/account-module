@@ -46,15 +46,6 @@ pub struct Confirmed {
     pub id_confirmer: String,
     pub timestamp: String,
 }
-
-impl Confirmed {
-    pub fn new(id_confirmer: String) -> Confirmed {
-        Confirmed {
-            id_confirmer,
-            timestamp: timestamp_generator(),
-        }
-    }    
-}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HashEvents {
     pub hash: String,
@@ -75,10 +66,9 @@ pub struct Transaction {
     pub transaction_status: TransactionStatus,
     pub asset: String,
     pub amount: f64,
+    pub total_amount: f64,
     pub from_wallet: String,
-    pub from_account: String,
     pub to_wallet: String,
-    pub to_account: String,
     pub timestamp: String,
     pub fee: Vec<FeeReason>,
     pub memo: String,
@@ -94,9 +84,7 @@ impl Transaction {
         asset: String,
         amount: f64,
         from_wallet: String,
-        from_account: String,
         to_wallet: String,
-        to_account: String,
         memo: String,
         confirmations_required: u32,
     ) -> Transaction {
@@ -107,10 +95,9 @@ impl Transaction {
             transaction_status: TransactionStatus::Pending,
             asset,
             amount,
+            total_amount:amount,
             from_wallet,
-            from_account,
             to_wallet,
-            to_account,
             timestamp: timestamp_generator(),
             fee: Vec::new(),
             memo,
@@ -123,6 +110,7 @@ impl Transaction {
     }
     pub fn add_fee(&mut self, reason: String, amount: f64) {
         self.fee.push(FeeReason { reason, amount });
+        self.total_amount+=amount;
         self.create_hash_event("fee".to_string(), amount.to_string());
     }
     pub fn confirm_transaction(&mut self, id_confirmer: String)->Result<(),String> {
@@ -160,10 +148,8 @@ impl Transaction {
             Err("Transaction is not confirmed".to_string())
         }        
     }
-    pub fn fail_transaction(&mut self, external_id: String)->Result<(),String> {
+    pub fn fail_transaction(&mut self)->Result<(),String> {
         if self.transaction_status == TransactionStatus::Confirmed {
-            self.external_id = Some(external_id.clone());
-            self.create_hash_event("external_id".to_string(), external_id);
             self.transaction_status = TransactionStatus::Failed;
             self.create_hash_event(
                 "transaction_status".to_string(),
@@ -172,11 +158,11 @@ impl Transaction {
             Ok(())
         }
         else{
-            Err("Transaction is not pending".to_string())
+            Err("Transaction is not confirmed".to_string())
         }
     }
     pub fn cancel_transaction(&mut self)->Result<(),String> {
-        if self.transaction_status == TransactionStatus::Pending || self.transaction_status == TransactionStatus::Confirmed{
+        if self.transaction_status == TransactionStatus::Pending {
             self.transaction_status = TransactionStatus::Cancelled;
             self.create_hash_event(
                 "transaction_status".to_string(),
@@ -228,9 +214,7 @@ impl Transaction {
         full_string.push_str(&self.asset);
         full_string.push_str(&self.amount.to_string());
         full_string.push_str(&self.from_wallet);
-        full_string.push_str(&self.from_account);
         full_string.push_str(&self.to_wallet);
-        full_string.push_str(&self.to_account);
         full_string.push_str(&self.timestamp);
         full_string.push_str(&fee_string);
         full_string.push_str(&self.memo);

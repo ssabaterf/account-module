@@ -1,4 +1,4 @@
-use api::{account::{create_account, get_accounts, get_account, enable_account, disable_account, get_fiats, get_cryptos, balances}, fiat::{create_fiat, get_fiat, fiat_deposit, fiat_confirm_deposit, fiat_withdrawal, fiat_release_withdrawal}, crypto::{get_crypto, create_crypto, crypto_deposit, crypto_confirm_deposit, crypto_withdrawal, crypto_release_withdrawal}};
+use api::{account::{create_account, get_accounts, get_account, enable_account, disable_account, get_fiats, get_cryptos, balances}, fiat::{create_fiat, get_fiat, fiat_deposit, fiat_confirm_deposit, fiat_withdrawal, fiat_release_withdrawal}, crypto::{get_crypto, create_crypto, crypto_deposit, crypto_confirm_deposit, crypto_withdrawal, crypto_release_withdrawal}, transaction::{submit_transaction, confirm_transaction, complete_transaction, fail_transaction, cancel_transaction}};
 use chrono::Local;
 use domain::{ledger::{Fiat, Crypto}, account::Account, transaction::Transaction, asset::AssetManager};
 use mongo::Data;
@@ -61,6 +61,7 @@ async fn rocket() -> _ {
     .mount("/v1/accounts", routes![create_account, get_accounts, get_account, disable_account, enable_account,get_fiats, get_cryptos, balances])
     .mount("/v1/fiats", routes![create_fiat, get_fiat, fiat_deposit, fiat_confirm_deposit, fiat_withdrawal, fiat_release_withdrawal])
     .mount("/v1/cryptos", routes![create_crypto, get_crypto, crypto_deposit, crypto_confirm_deposit, crypto_withdrawal, crypto_release_withdrawal])
+    .mount("/v1/transactions", routes![submit_transaction, confirm_transaction, complete_transaction, fail_transaction, cancel_transaction])
     .register(
         "/",
         catchers![unauthorized, not_found, internal_sever_error,],

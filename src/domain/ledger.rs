@@ -2,6 +2,9 @@ use serde::{Deserialize, Serialize};
 
 use super::asset::{Asset, AssetType};
 
+pub trait Accounting {
+    fn get_account_number(&self)->String;
+}
 pub trait FungibleTradeable {
     fn deposit(&mut self, amount: f64)->Result<(),String>;
     fn withdraw(&mut self, amount: f64)->Result<(),String>;
@@ -26,6 +29,7 @@ impl Fiat {
         }
         let mut id = "".to_string();
         id.push_str(&account_id);
+        id.push('_');
         id.push_str(&asset.symbol);
         match asset.asset_type {
             AssetType::Fiat => Ok(Fiat {
@@ -38,6 +42,11 @@ impl Fiat {
             }),
             _ => Err("Asset type must be Fiat".to_string()),
         }
+    }
+}
+impl Accounting for Fiat {
+    fn get_account_number(&self)->String {
+        self.account_number.clone()
     }
 }
 impl FungibleTradeable for Fiat {
@@ -121,6 +130,11 @@ impl Crypto {
             }),
             _ => Err("Asset type must be Crypto".to_string()),
         }
+    }
+}
+impl Accounting for Crypto {
+    fn get_account_number(&self)->String {
+        self.account_number.clone()
     }
 }
 impl FungibleTradeable for Crypto {
