@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use mongodb::{
     bson::{self, doc},
     options::{ClientOptions, FindOptions},
-    Client, Collection, Database,
+    Client, Collection, Database, ClientSession,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use std::borrow::Borrow;
@@ -34,6 +34,7 @@ impl Data {
         let collection = self.db.collection(collection);
         Ok(Repository {
             key_field,
+            client:self.client.clone(),
             collection,
         })
     }
@@ -42,6 +43,23 @@ pub struct Repository<T>
 where T: Send + Sync + Clone + Serialize + DeserializeOwned + Unpin + 'static{
     key_field: String,
     collection: Collection<T>,
+    client: Client,
+}
+#[async_trait]
+pub trait Transactional<T>: Send + Sync {
+    async fn get_session(&self)->Result<ClientSession,String>;
+}
+#[async_trait]
+impl<T> Transactional<T> for Repository<T>
+where
+    T: Send + Sync + Clone + Serialize + DeserializeOwned + Unpin + 'static,
+{
+    async fn get_session(&self)->Result<ClientSession,String>{
+       match self.client.start_session(None).await{
+              Ok(session) => Ok(session),
+              Err(e) => return Err(format!("Error creating session: {}", e))
+       }
+    }
 }
 #[async_trait]
 pub trait Crud<T>: Send + Sync {
