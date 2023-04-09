@@ -12,11 +12,13 @@ use crate::{
     domain::{
         asset::{Asset, AssetManager, AssetType},
         ledger::{Accounting, Crypto, Fiat, FungibleTradeable},
-        transaction::{Transaction, TransactionType, TransactionStatus},
+        transaction::{Transaction, TransactionStatus, TransactionType},
     },
     dto::transaction::TransactionRequest,
+    fairings::auth::AuthorizedUser,
     mongo::{Crud, Repository, Transactional},
     response::error::ErrorResponse,
+    security::permissions::{can_continue, only_admin},
 };
 
 #[openapi(tag = "Transactions")]
@@ -27,6 +29,7 @@ pub async fn submit_transaction(
     fiat_db: &State<Repository<Fiat>>,
     crypto_db: &State<Repository<Crypto>>,
     asset_master: &State<AssetManager>,
+    _auth: AuthorizedUser,
 ) -> Result<Json<Transaction>, (Status, Json<ErrorResponse>)> {
     let req = transaction.0;
     let asset = match asset_master.get_by_symbol(&req.symbol) {
@@ -129,6 +132,7 @@ pub async fn confirm_transaction(
     fiat_db: &State<Repository<Fiat>>,
     crypto_db: &State<Repository<Crypto>>,
     asset_master: &State<AssetManager>,
+    _auth: AuthorizedUser,
 ) -> Result<Json<Transaction>, (Status, Json<ErrorResponse>)> {
     let id_confirmer = "11111".to_string();
     let transaction = match transaction_db.get_by_id(&id).await {
@@ -140,7 +144,18 @@ pub async fn confirm_transaction(
             ))
         }
     };
-    if transaction.transaction_status != TransactionStatus::Pending{
+    let from = transaction.clone().from_wallet.unwrap_or(" ".to_string());
+    let to = transaction.clone().to_wallet.unwrap_or(" ".to_string());
+    if !(can_continue(_auth.clone(), &from) || can_continue(_auth.clone(), &to)) {
+        return Err((
+            Status::BadRequest,
+            Json(ErrorResponse::new(
+                "Invalid transaction".to_string(),
+                "You are not allowed to confirm this transaction".to_string(),
+            )),
+        ));
+    }
+    if transaction.transaction_status != TransactionStatus::Pending {
         return Err((
             Status::BadRequest,
             Json(ErrorResponse::new(
@@ -243,8 +258,18 @@ pub async fn complete_transaction(
     fiat_db: &State<Repository<Fiat>>,
     crypto_db: &State<Repository<Crypto>>,
     asset_master: &State<AssetManager>,
+    _auth: AuthorizedUser,
 ) -> Result<Json<Transaction>, (Status, Json<ErrorResponse>)> {
     let id_confirmer = "11111".to_string();
+    if !only_admin(_auth){
+        return Err((
+            Status::BadRequest,
+            Json(ErrorResponse::new(
+                "Invalid transaction".to_string(),
+                "You are not allowed to complete this transaction".to_string(),
+            )),
+        ));
+    }
     let transaction = match transaction_db.get_by_id(&id).await {
         Ok(transaction) => transaction,
         Err(e) => {
@@ -254,7 +279,7 @@ pub async fn complete_transaction(
             ))
         }
     };
-    if transaction.transaction_status != TransactionStatus::Confirmed{
+    if transaction.transaction_status != TransactionStatus::Confirmed {
         return Err((
             Status::BadRequest,
             Json(ErrorResponse::new(
@@ -358,7 +383,17 @@ pub async fn fail_transaction(
     fiat_db: &State<Repository<Fiat>>,
     crypto_db: &State<Repository<Crypto>>,
     asset_master: &State<AssetManager>,
+    _auth: AuthorizedUser,
 ) -> Result<Json<Transaction>, (Status, Json<ErrorResponse>)> {
+    if !only_admin(_auth){
+        return Err((
+            Status::BadRequest,
+            Json(ErrorResponse::new(
+                "Invalid transaction".to_string(),
+                "You are not allowed to fail this transaction".to_string(),
+            )),
+        ));
+    }
     let transaction = match transaction_db.get_by_id(&id).await {
         Ok(transaction) => transaction,
         Err(e) => {
@@ -368,7 +403,7 @@ pub async fn fail_transaction(
             ))
         }
     };
-    if transaction.transaction_status != TransactionStatus::Confirmed{
+    if transaction.transaction_status != TransactionStatus::Confirmed {
         return Err((
             Status::BadRequest,
             Json(ErrorResponse::new(
@@ -467,7 +502,8 @@ pub async fn cancel_transaction(
     fiat_db: &State<Repository<Fiat>>,
     crypto_db: &State<Repository<Crypto>>,
     asset_master: &State<AssetManager>,
-) -> Result<Json<Transaction>, (Status, Json<ErrorResponse>)> {
+    _auth: AuthorizedUser,
+) -> Result<Json<Transaction>, (Status, Json<ErrorResponse>)> {    
     let transaction = match transaction_db.get_by_id(&id).await {
         Ok(transaction) => transaction,
         Err(e) => {
@@ -477,7 +513,18 @@ pub async fn cancel_transaction(
             ))
         }
     };
-    if transaction.transaction_status != TransactionStatus::Pending{
+    let from = transaction.clone().from_wallet.unwrap_or(" ".to_string());
+    let to = transaction.clone().to_wallet.unwrap_or(" ".to_string());
+    if !(can_continue(_auth.clone(), &from) || can_continue(_auth.clone(), &to)) {
+        return Err((
+            Status::BadRequest,
+            Json(ErrorResponse::new(
+                "Invalid transaction".to_string(),
+                "You are not allowed to confirm this transaction".to_string(),
+            )),
+        ));
+    }
+    if transaction.transaction_status != TransactionStatus::Pending {
         return Err((
             Status::BadRequest,
             Json(ErrorResponse::new(

@@ -1,7 +1,7 @@
 use revolt_rocket_okapi::openapi;
 use rocket::{State, http::Status, serde::json::Json, post, get};
 
-use crate::{domain::{account::Account, ledger::{Crypto, FungibleTradeable}, asset::AssetManager, transaction::Transaction}, mongo::{Repository, Crud}, response::error::ErrorResponse, dto::deposit::{Deposit, DepositCreation, DepositConfirmation, Withdrawal, WithdrawalCreation, WithdrawalConfirmation}};
+use crate::{domain::{account::Account, ledger::{Crypto, FungibleTradeable}, asset::AssetManager, transaction::Transaction}, mongo::{Repository, Crud}, response::error::ErrorResponse, dto::deposit::{Deposit, DepositCreation, DepositConfirmation, Withdrawal, WithdrawalCreation, WithdrawalConfirmation}, fairings::auth::AuthorizedUser, security::permissions::can_continue};
 
 #[openapi(tag = "Fiats")]
 #[post("/cryptos/<id>/ledgers/<symbol>", format = "json")]
@@ -11,7 +11,11 @@ pub async fn create_crypto(
     account_db: &State<Repository<Account>>,
     crypto_db: &State<Repository<Crypto>>,
     asset_master: &State<AssetManager>,
+    _auth: AuthorizedUser,
 ) -> Result<Json<Crypto>, (Status, Json<ErrorResponse>)> {
+    if !can_continue(_auth, &id) {
+        return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), "You can only get your own account".to_string()))));
+    };
     let asset = match asset_master.get_by_symbol(&symbol){
         Some(asset) => asset,
         None => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), "Asset not found".to_string())))),
@@ -43,7 +47,11 @@ pub async fn get_crypto(
     symbol: String,
     account_db: &State<Repository<Account>>,
     crypto_db: &State<Repository<Crypto>>,
+    _auth: AuthorizedUser,
 ) -> Result<Json<Vec<Crypto>>, (Status, Json<ErrorResponse>)> {
+    if !can_continue(_auth, &id) {
+        return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), "You can only get your own account".to_string()))));
+    };
     let account = match account_db.get_by_id(&id).await {
         Ok(account) => account,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
@@ -66,7 +74,11 @@ pub async fn crypto_deposit(
     account_db: &State<Repository<Account>>,
     transaction_db: &State<Repository<Transaction>>,
     crypto_db: &State<Repository<Crypto>>,
+    _auth: AuthorizedUser,
 ) -> Result<Json<DepositCreation<Crypto>>,  (Status, Json<ErrorResponse>)> {
+    if !can_continue(_auth, &id) {
+        return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), "You can only get your own account".to_string()))));
+    };
     match account_db.get_by_id(&id).await {
         Ok(account) => account,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
@@ -103,13 +115,22 @@ pub async fn crypto_confirm_deposit(
     account_db: &State<Repository<Account>>,
     transaction_db: &State<Repository<Transaction>>,
     crypto_db: &State<Repository<Crypto>>,
+    _auth: AuthorizedUser,
 ) -> Result<Json<Crypto>, (Status, Json<ErrorResponse>)> {
+    if !can_continue(_auth, &id) {
+        return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), "You can only get your own account".to_string()))));
+    };
     match account_db.get_by_id(&id).await {
         Ok(account) => account,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-    let mut tx = match transaction_db.get_by_id(&tx_id).await{
-        Ok(tx) => tx,
+    let mut tx = match transaction_db.get_by_fields(vec!["to_wallet".to_string(), "tx_id".to_string()], vec![id.clone(),tx_id.clone()]).await{
+        Ok(tx) => {
+            if tx.is_empty() {
+                return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), "Transaction not found".to_string()))));
+            }
+            tx[0].clone()
+        },
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
     let mut id_ledger = id.clone();
@@ -146,7 +167,11 @@ pub async fn crypto_withdrawal(
     transaction_db: &State<Repository<Transaction>>,
     account_db: &State<Repository<Account>>,
     crypto_db: &State<Repository<Crypto>>,
+    _auth: AuthorizedUser,
 ) -> Result<Json<WithdrawalCreation<Crypto>>, (Status, Json<ErrorResponse>)> {
+    if !can_continue(_auth, &id) {
+        return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), "You can only get your own account".to_string()))));
+    };
     match account_db.get_by_id(&id).await {
         Ok(account) => account,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
@@ -184,13 +209,22 @@ pub async fn crypto_release_withdrawal(
     account_db: &State<Repository<Account>>,
     transaction_db: &State<Repository<Transaction>>,
     crypto_db: &State<Repository<Crypto>>,
+    _auth: AuthorizedUser,
 ) -> Result<Json<Crypto>, (Status, Json<ErrorResponse>)> {
+    if !can_continue(_auth, &id) {
+        return Err((Status::BadRequest, Json(ErrorResponse::new("Account".to_string(), "You can only get your own account".to_string()))));
+    };
     match account_db.get_by_id(&id).await {
         Ok(account) => account,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-    let mut tx = match transaction_db.get_by_id(&tx_id).await {
-        Ok(tx) => tx,
+    let mut tx = match transaction_db.get_by_fields(vec!["from_wallet".to_string(), "tx_id".to_string()], vec![id.clone(),tx_id.clone()]).await{
+        Ok(tx) => {
+            if tx.is_empty() {
+                return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), "Transaction not found".to_string()))));
+            }
+            tx[0].clone()
+        },
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
     let mut id_ledger = id.clone();

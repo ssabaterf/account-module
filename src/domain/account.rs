@@ -16,6 +16,7 @@ pub struct Balance {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Account {
+    pub user_owner_id: String,
     pub account_number: String,
     pub accounts_fiat: HashMap<String, String>,
     pub accounts_crypto: HashMap<String, String>,
@@ -26,9 +27,11 @@ impl Account {
     pub fn init(
         asset_master: &AssetManager,
         default_assets: &Vec<String>,
+        owner_id: String,
     ) -> Result<Account, String> {
         let id = account_number_generator().to_uppercase();
         let mut account = Account {
+            user_owner_id: owner_id,
             account_number: id,
             accounts_fiat: HashMap::new(),
             accounts_crypto: HashMap::new(),
@@ -49,9 +52,6 @@ impl Account {
                     .insert(default_asset.symbol.clone(), account.account_number.clone()),
             };
         }
-        // todo!("Add constraints to account");
-        // todo!("Add account to database");
-        // todo!("Crate currency account for each asset");
         Ok(account)
     }
     pub fn balance(fiats: Vec<Fiat>, crypto: Vec<Crypto>) -> HashMap<String, Balance> {

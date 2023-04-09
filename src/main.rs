@@ -1,10 +1,10 @@
-use api::{account::*, crypto::*, fiat::*, transaction::*};
+use api::{account::*, crypto::*, fiat::*, transaction::*, auth::*};
 use chrono::Local;
 use domain::{
     account::Account,
     asset::AssetManager,
     ledger::{Crypto, Fiat},
-    transaction::Transaction,
+    transaction::Transaction, user::User,
 };
 use dotenv::dotenv;
 use mongo::Data;
@@ -24,6 +24,8 @@ mod domain;
 mod dto;
 mod mongo;
 mod response;
+mod fairings;
+mod security;
 
 #[launch]
 async fn rocket() -> _ {
@@ -62,6 +64,9 @@ async fn rocket() -> _ {
     let transaction_db = client
         .get_repo::<Transaction>("transaction", "tx_id".to_string())
         .unwrap();
+    let user_db = client
+        .get_repo::<User>("user", "id".to_string())
+        .unwrap();
     let asset_manager = AssetManager::new();
     let cors = CorsOptions::default()
         .allowed_origins(AllowedOrigins::all())
@@ -74,6 +79,10 @@ async fn rocket() -> _ {
         .allow_credentials(true);
 
     let unique_v1_api = openapi_get_routes![
+        register,
+        login,
+        refresh_tokens,
+
         create_account,
         get_accounts,
         get_account,
@@ -111,6 +120,7 @@ async fn rocket() -> _ {
         .manage(asset_manager)
         .manage(wallet_db)
         .manage(transaction_db)
+        .manage(user_db)
         .mount(
             "/v1", unique_v1_api
         )
