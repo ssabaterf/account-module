@@ -12,6 +12,7 @@ dependencies = [
  "chrono",
  "dotenv",
  "jsonwebtoken",
+ "lazy_static",
  "mongodb",
  "okapi",
  "rand",

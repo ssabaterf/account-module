@@ -1,6 +1,7 @@
 use bcrypt::{hash, verify};
 use chrono::Utc;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
+use lazy_static::lazy_static;
 use rocket::{http::Status, serde::json::Json};
 use serde::{Deserialize, Serialize};
 use std::env;
@@ -159,10 +160,10 @@ pub fn encode_token_and_refresh(
     id: String,
     role: Role,
     resource: String,
-    jwt_secret: String,
-    refresh_token_secret: String,
-    expiration_refresh_token: i64,
-    expiration_token: i64,
+    jwt_secret: &str,
+    refresh_token_secret: &str,
+    expiration_refresh_token: &i64,
+    expiration_token: &i64,
 ) -> Result<Token, ()> {
     match encode_jwt(
         id.clone(),
@@ -228,11 +229,11 @@ pub fn encode_jwt(
     id: String,
     role: Role,
     resource: String,
-    secret: String,
-    expiration: i64,
+    secret: &str,
+    expiration: &i64,
 ) -> EncodeJwtHelper {
     let expiration = Utc::now()
-        .checked_add_signed(chrono::Duration::seconds(expiration))
+        .checked_add_signed(chrono::Duration::seconds(expiration.clone()))
         .expect("valid timestamp")
         .timestamp();
 
@@ -251,35 +252,33 @@ pub fn encode_jwt(
         Err(_) => EncodeJwtHelper::Err,
     }
 }
-pub async fn get_jwt_secret() -> String {
-    match env::var("JWT_SECRET") {
-        Ok(v) => v,
-        Err(_) => panic!("Error loading env variable: JWT_SECRET"),
-    }
-}
-pub async fn get_jwt_refresh() -> String {
-    match env::var("JWT_REFRESH") {
-        Ok(v) => v,
-        Err(_) => panic!("Error loading env variable: JWT_REFRESH"),
-    }
-}
-
-pub async fn get_jwt_expiration() -> i64 {
-    match env::var("JWT_EXPIRES_IN") {
-        Ok(v) => match v.parse() {
-            Ok(v) => v,
-            Err(_) => panic!("Error parsing env variable: JWT_REFRESH_EXPIRES_IN"),
-        },
-        Err(_) => panic!("Error loading env variable: JWT_EXPIRES_IN"),
-    }
+lazy_static! {
+    static ref JWT_SECRET: String = {
+        env::var("JWT_SECRET").expect("Error loading env variable: JWT_SECRET")
+    };
+    static ref JWT_REFRESH: String = {
+        env::var("JWT_REFRESH").expect("Error loading env variable: JWT_REFRESH")
+    };
+    static ref JWT_EXPIRES_IN: i64 = {
+        env::var("JWT_EXPIRES_IN").expect("Error loading env variable: JWT_REFRESH")
+        .parse().expect("Error parsing env variable: JWT_REFRESH")
+    };
+    static ref JWT_REFRESH_EXPIRES_IN: i64 = {
+        env::var("JWT_REFRESH_EXPIRES_IN").expect("Error loading env variable: JWT_REFRESH_EXPIRES_IN")
+        .parse().expect("Error parsing env variable: JWT_REFRESH_EXPIRES_IN")
+    };
 }
 
-pub async fn get_jwt_refresh_expiration() -> i64 {
-    match env::var("JWT_REFRESH_EXPIRES_IN") {
-        Ok(v) => match v.parse() {
-            Ok(v) => v,
-            Err(_) => panic!("Error parsing env variable: JWT_REFRESH_EXPIRES_IN"),
-        },
-        Err(_) => panic!("Error loading env variable: JWT_REFRESH_EXPIRES_IN"),
-    }
+pub async fn get_jwt_secret() -> &'static str {
+    &JWT_SECRET
+}
+pub async fn get_jwt_refresh() -> &'static str {
+    &JWT_REFRESH
+}
+pub async fn get_jwt_expiration() -> &'static i64 {
+    &JWT_EXPIRES_IN
+}
+
+pub async fn get_jwt_refresh_expiration() -> &'static i64 {
+    &JWT_REFRESH_EXPIRES_IN
 }
