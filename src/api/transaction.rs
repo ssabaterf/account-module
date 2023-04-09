@@ -11,7 +11,7 @@ use crate::{
     domain::{
         asset::{Asset, AssetManager, AssetType},
         ledger::{Accounting, Crypto, Fiat, FungibleTradeable},
-        transaction::{Transaction, TransactionType},
+        transaction::{Transaction, TransactionType, TransactionStatus},
     },
     dto::transaction::TransactionRequest,
     mongo::{Crud, Repository, Transactional},
@@ -137,6 +137,15 @@ pub async fn confirm_transaction(
             ))
         }
     };
+    if transaction.transaction_status != TransactionStatus::Pending{
+        return Err((
+            Status::BadRequest,
+            Json(ErrorResponse::new(
+                "Invalid transaction".to_string(),
+                "Transaction is not pending".to_string(),
+            )),
+        ));
+    }
     let asset = match asset_master.get_by_symbol(&transaction.asset) {
         Some(asset) => asset,
         None => {
@@ -241,6 +250,15 @@ pub async fn complete_transaction(
             ))
         }
     };
+    if transaction.transaction_status != TransactionStatus::Confirmed{
+        return Err((
+            Status::BadRequest,
+            Json(ErrorResponse::new(
+                "Invalid transaction".to_string(),
+                "Transaction is not pending".to_string(),
+            )),
+        ));
+    }
     let asset = match asset_master.get_by_symbol(&transaction.asset) {
         Some(asset) => asset,
         None => {
@@ -344,6 +362,15 @@ pub async fn fail_transaction(
             ))
         }
     };
+    if transaction.transaction_status != TransactionStatus::Confirmed{
+        return Err((
+            Status::BadRequest,
+            Json(ErrorResponse::new(
+                "Invalid transaction".to_string(),
+                "Transaction is not pending".to_string(),
+            )),
+        ));
+    }
     let asset = match asset_master.get_by_symbol(&transaction.asset) {
         Some(asset) => asset,
         None => {
@@ -443,6 +470,15 @@ pub async fn cancel_transaction(
             ))
         }
     };
+    if transaction.transaction_status != TransactionStatus::Pending{
+        return Err((
+            Status::BadRequest,
+            Json(ErrorResponse::new(
+                "Invalid transaction".to_string(),
+                "Transaction is not pending".to_string(),
+            )),
+        ));
+    }
     let asset = match asset_master.get_by_symbol(&transaction.asset) {
         Some(asset) => asset,
         None => {
@@ -550,9 +586,9 @@ async fn cancel_tx<
             Ok((mut from, mut to)) => {
                 from.confirm_deposit(transaction.total_amount)?;
                 to.confirm_withdraw(transaction.total_amount)?;
+                transaction.cancel_transaction()?;
                 ledger_db.update_by_id(&id_from, from).await?;
                 ledger_db.update_by_id(&id_to, to).await?;
-                transaction.cancel_transaction()?;
                 match transaction_db
                     .update_by_id(&transaction.tx_id, transaction.clone())
                     .await
@@ -593,9 +629,9 @@ async fn fail_tx<
             Ok((mut from, mut to)) => {
                 from.confirm_deposit(transaction.total_amount)?;
                 to.confirm_withdraw(transaction.total_amount)?;
+                transaction.fail_transaction()?;
                 ledger_db.update_by_id(&id_from, from).await?;
                 ledger_db.update_by_id(&id_to, to).await?;
-                transaction.fail_transaction()?;
                 match transaction_db
                     .update_by_id(&transaction.tx_id, transaction.clone())
                     .await
@@ -675,9 +711,9 @@ async fn complete_tx<
             Ok((mut from, mut to)) => {
                 from.confirm_withdraw(transaction.total_amount)?;
                 to.confirm_deposit(transaction.amount)?;
+                transaction.complete_transaction(id_confirmer)?;
                 ledger_db.update_by_id(&id_from, from).await?;
                 ledger_db.update_by_id(&id_to, to).await?;
-                transaction.complete_transaction(id_confirmer)?;
                 match transaction_db
                     .update_by_id(&transaction.tx_id, transaction.clone())
                     .await
@@ -712,8 +748,8 @@ async fn process_tx<
                 "Basic Transfer".to_string(),
                 1,
             );
-            let source_amount = req.amount * 0.01;
-            transaction.add_fee("Tx Fee".to_string(), source_amount);
+            // let source_amount = req.amount * 0.01;
+            // transaction.add_fee("Tx Fee".to_string(), source_amount);
             from.withdraw(transaction.total_amount)?;
             to.deposit(transaction.amount)?;
             ledger_db.update_by_id(id_from, from).await?;
