@@ -6,6 +6,7 @@ use response::error::ErrorResponse;
 use rocket::{Request, launch, http::Method, catchers, routes, catch, serde::json::Json};
 use dotenv::dotenv;
 use rocket_cors::{CorsOptions, AllowedOrigins};
+use serde::{Serialize};
 use std::env;
 mod mongo;
 mod domain;
@@ -64,7 +65,7 @@ async fn rocket() -> _ {
     .mount("/v1/transactions", routes![submit_transaction, confirm_transaction, complete_transaction, fail_transaction, cancel_transaction])
     .register(
         "/",
-        catchers![unauthorized, not_found, internal_sever_error,],
+        catchers![unauthorized, not_found, internal_sever_error, bad_format],
     )
 }
 
@@ -85,7 +86,14 @@ pub fn not_found(_req: &Request) -> Json<ErrorResponse> {
     message,
     date: Local::now().format("%Y-%m-%d %H:%M:%S").to_string() })
 }
-
+#[catch(422)]
+pub fn bad_format(_req: &Request) -> Json<ErrorResponse> {
+    let mut message = "Bad formated body in the request ".to_string();
+    message.push_str(_req.uri().path().as_str());
+    Json(ErrorResponse { cause: "BAD FORMAT".to_string(), 
+    message,
+    date: Local::now().format("%Y-%m-%d %H:%M:%S").to_string() })
+}
 #[catch(500)]
 pub fn internal_sever_error() -> Json<ErrorResponse> {
     Json(ErrorResponse { cause: "INTERNAL SERVER ERROR".to_string(), 
@@ -93,3 +101,13 @@ pub fn internal_sever_error() -> Json<ErrorResponse> {
     date: Local::now().format("%Y-%m-%d %H:%M:%S").to_string() })
 }
 
+#[derive(Debug, Serialize)]
+struct ErrorDetails {
+    field: String,
+    message: String,
+}
+
+#[derive(Debug, Serialize)]
+struct UnprocessableEntityError {
+    error: Vec<ErrorDetails>,
+}

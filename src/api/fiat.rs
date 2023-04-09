@@ -74,7 +74,7 @@ pub async fn fiat_deposit(
         Ok(fiat) => fiat,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-    let tx_deposit = Transaction::new_deposit(deposit.symbol.clone(), deposit.amount, id.clone(), 1);
+    let tx = Transaction::new_deposit(deposit.symbol.clone(), deposit.amount, id.clone(), 1);
     match fiat.deposit(deposit.amount){
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
@@ -83,11 +83,11 @@ pub async fn fiat_deposit(
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-    let tx = match transaction_db.create(tx_deposit).await {
+    match transaction_db.create(tx.clone()).await {
         Ok(tx) => tx,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-    Ok(Json(DepositCreation{account: fiat, tx_id: tx}))
+    Ok(Json(DepositCreation{account: fiat, tx_id: tx.tx_id}))
 }
 
 #[post("/<id>/deposit/<tx_id>/confirm", format = "json", data="<confirmation>")]
@@ -171,11 +171,11 @@ pub async fn fiat_withdrawal(
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-    let tx = match transaction_db.create(tx).await {
+     match transaction_db.create(tx.clone()).await {
         Ok(tx) => tx,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-    Ok(Json(WithdrawalCreation{account: fiat, tx_id: tx}))
+    Ok(Json(WithdrawalCreation{account: fiat, tx_id: tx.tx_id}))
 }
 
 #[post("/<id>/withdraw/<tx_id>/release", format = "json", data = "<confirmation>")]
