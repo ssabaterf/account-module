@@ -1,7 +1,6 @@
 use rocket::{State, http::Status, serde::json::Json, post, get};
 
-use crate::{domain::{account::Account, ledger::{Fiat, FungibleTradeable}, asset::AssetManager}, mongo::{Repository, Crud}, response::error::ErrorResponse, dto::deposit::Deposit};
-
+use crate::{domain::{account::Account, ledger::{Fiat, FungibleTradeable}, asset::AssetManager, transaction::Transaction}, mongo::{Repository, Crud}, response::error::ErrorResponse, dto::deposit::{Deposit, DepositCreation, DepositConfirmation, Withdrawal, WithdrawalCreation, WithdrawalConfirmation}};
 
 #[post("/<id>/ledgers/<symbol>", format = "json")]
 pub async fn create_fiat(
@@ -61,48 +60,76 @@ pub async fn fiat_deposit(
     id: String,
     deposit: Json<Deposit>,
     account_db: &State<Repository<Account>>,
+    transaction_db: &State<Repository<Transaction>>,
     fiat_db: &State<Repository<Fiat>>,
-) -> Result<Json<Fiat>, (Status, Json<ErrorResponse>)> {
+) -> Result<Json<DepositCreation<Fiat>>, (Status, Json<ErrorResponse>)> {
     match account_db.get_by_id(&id).await {
         Ok(account) => account,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-    let mut fiat = match fiat_db.get_by_id(&id).await {
+    let mut id_ledger = id.clone();
+    id_ledger.push('_');
+    id_ledger.push_str(&deposit.symbol);
+    let mut fiat = match fiat_db.get_by_id(&id_ledger).await {
         Ok(fiat) => fiat,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
+    let tx_deposit = Transaction::new_deposit(deposit.symbol.clone(), deposit.amount, id.clone(), 1);
     match fiat.deposit(deposit.amount){
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-
     match fiat_db.update_by_id(&fiat.id, fiat.clone()).await {
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-    Ok(Json(fiat))
+    let tx = match transaction_db.create(tx_deposit).await {
+        Ok(tx) => tx,
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
+    };
+    Ok(Json(DepositCreation{account: fiat, tx_id: tx}))
 }
 
-#[post("/<id>/confirm", format = "json", data = "<deposit>")]
+#[post("/<id>/deposit/<tx_id>/confirm", format = "json", data="<confirmation>")]
 pub async fn fiat_confirm_deposit(
     id: String,
-    deposit: Json<Deposit>,
+    tx_id: String,
+    confirmation: Json<DepositConfirmation>,
     account_db: &State<Repository<Account>>,
+    transaction_db: &State<Repository<Transaction>>,
     fiat_db: &State<Repository<Fiat>>,
 ) -> Result<Json<Fiat>, (Status, Json<ErrorResponse>)> {
     match account_db.get_by_id(&id).await {
         Ok(account) => account,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-    let mut fiat = match fiat_db.get_by_id(&id).await {
+    let mut tx = match transaction_db.get_by_id(&tx_id).await {
+        Ok(tx) => tx,
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
+    };
+    let mut id_ledger = id.clone();
+    id_ledger.push('_');
+    id_ledger.push_str(&tx.asset);
+    let mut fiat = match fiat_db.get_by_id(&id_ledger).await {
         Ok(fiat) => fiat,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-    match fiat.confirm_deposit(deposit.amount){
+    match fiat.confirm_deposit(tx.amount){
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-
+    match tx.confirm_transaction(id){
+        Ok(tx) => tx,
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
+    };
+    match tx.complete_transaction(confirmation.external_id.clone()){
+        Ok(tx) => tx,
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
+    };
+    match transaction_db.update_by_id(&tx.tx_id.clone(), tx).await {
+        Ok(_) => (),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
+    };
     match fiat_db.update_by_id(&fiat.id, fiat.clone()).await {
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
@@ -110,54 +137,88 @@ pub async fn fiat_confirm_deposit(
     Ok(Json(fiat))
 }
 
-#[post("/<id>/withdrawal", format = "json", data = "<deposit>")]
+#[post("/<id>/withdrawal", format = "json", data = "<withdrawal>")]
 pub async fn fiat_withdrawal(
     id: String,
-    deposit: Json<Deposit>,
+    withdrawal: Json<Withdrawal>,
+    transaction_db: &State<Repository<Transaction>>,
     account_db: &State<Repository<Account>>,
     fiat_db: &State<Repository<Fiat>>,
-) -> Result<Json<Fiat>, (Status, Json<ErrorResponse>)> {
+) -> Result<Json<WithdrawalCreation<Fiat>>, (Status, Json<ErrorResponse>)> {
     match account_db.get_by_id(&id).await {
         Ok(account) => account,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-    let mut fiat = match fiat_db.get_by_id(&id).await {
+    let mut id_ledger = id.clone();
+    id_ledger.push('_');
+    id_ledger.push_str(&withdrawal.symbol);
+    let mut fiat = match fiat_db.get_by_id(&id_ledger).await {
         Ok(fiat) => fiat,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-    match fiat.withdraw(deposit.amount){
+    let mut tx = Transaction::new_withdraw(
+        withdrawal.symbol.clone(),
+        withdrawal.amount,
+        id.clone(),
+        1,
+    );
+    tx.add_fee("Withdrawal".to_string(), tx.amount * 0.02);
+    match fiat.withdraw(tx.total_amount){
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-
     match fiat_db.update_by_id(&fiat.id, fiat.clone()).await {
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-    Ok(Json(fiat))
+    let tx = match transaction_db.create(tx).await {
+        Ok(tx) => tx,
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
+    };
+    Ok(Json(WithdrawalCreation{account: fiat, tx_id: tx}))
 }
 
-#[post("/<id>/release", format = "json", data = "<deposit>")]
+#[post("/<id>/withdraw/<tx_id>/release", format = "json", data = "<confirmation>")]
 pub async fn fiat_release_withdrawal(
     id: String,
-    deposit: Json<Deposit>,
+    tx_id: String,
+    confirmation: Json<WithdrawalConfirmation>,
     account_db: &State<Repository<Account>>,
+    transaction_db: &State<Repository<Transaction>>,
     fiat_db: &State<Repository<Fiat>>,
 ) -> Result<Json<Fiat>, (Status, Json<ErrorResponse>)> {
     match account_db.get_by_id(&id).await {
         Ok(account) => account,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-    let mut fiat = match fiat_db.get_by_id(&id).await {
+    let mut tx = match transaction_db.get_by_id(&tx_id).await {
+        Ok(tx) => tx,
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
+    };
+    let mut id_ledger = id.clone();
+    id_ledger.push('_');
+    id_ledger.push_str(&tx.asset);
+    let mut fiat = match fiat_db.get_by_id(&id_ledger).await {
         Ok(fiat) => fiat,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-    match fiat.confirm_withdraw(deposit.amount){
+    match fiat.confirm_withdraw(tx.total_amount){
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };
-
+    match tx.confirm_transaction(id){
+        Ok(tx) => tx,
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
+    };
+    match tx.complete_transaction(confirmation.external_id.clone()){
+        Ok(tx) => tx,
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
+    };
     match fiat_db.update_by_id(&fiat.id, fiat.clone()).await {
+        Ok(_) => (),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
+    };
+    match transaction_db.update_by_id(&tx.tx_id.clone(), tx).await {
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Fiat".to_string(), e)))),
     };

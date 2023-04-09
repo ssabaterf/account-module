@@ -67,8 +67,8 @@ pub struct Transaction {
     pub asset: String,
     pub amount: f64,
     pub total_amount: f64,
-    pub from_wallet: String,
-    pub to_wallet: String,
+    pub from_wallet: Option<String>,
+    pub to_wallet: Option<String>,
     pub timestamp: String,
     pub fee: Vec<FeeReason>,
     pub memo: String,
@@ -79,8 +79,7 @@ pub struct Transaction {
     pub hash: Vec<HashEvents>,
 }
 impl Transaction {
-    pub fn new(
-        transaction_type: TransactionType,
+    pub fn new_transfer(
         asset: String,
         amount: f64,
         from_wallet: String,
@@ -91,16 +90,68 @@ impl Transaction {
         Transaction {
             tx_id: transaction_id_generator(),
             external_id: None,
-            transaction_type,
+            transaction_type: TransactionType::Transfer,
             transaction_status: TransactionStatus::Pending,
             asset,
             amount,
             total_amount:amount,
-            from_wallet,
-            to_wallet,
+            from_wallet:Some(from_wallet),
+            to_wallet:Some(to_wallet),
             timestamp: timestamp_generator(),
             fee: Vec::new(),
             memo,
+            hash_chain: None,
+            block: None,
+            confirmations: Vec::new(),
+            confirmations_required,
+            hash: Vec::new(),
+        }
+    }
+    pub fn new_deposit(
+        asset: String,
+        amount: f64,
+        to_wallet: String,
+        confirmations_required: u32,
+    ) -> Transaction {
+        Transaction {
+            tx_id: transaction_id_generator(),
+            external_id: None,
+            transaction_type: TransactionType::Deposit,
+            transaction_status: TransactionStatus::Pending,
+            asset,
+            amount,
+            total_amount:amount,
+            from_wallet:None,
+            to_wallet:Some(to_wallet),
+            timestamp: timestamp_generator(),
+            fee: Vec::new(),
+            memo:"Deposit".to_string(),
+            hash_chain: None,
+            block: None,
+            confirmations: Vec::new(),
+            confirmations_required,
+            hash: Vec::new(),
+        }
+    }
+    pub fn new_withdraw(
+        asset: String,
+        amount: f64,
+        from_wallet: String,
+        confirmations_required: u32,
+    ) -> Transaction {
+        Transaction {
+            tx_id: transaction_id_generator(),
+            external_id: None,
+            transaction_type: TransactionType::Withdraw,
+            transaction_status: TransactionStatus::Pending,
+            asset,
+            amount,
+            total_amount:amount,
+            from_wallet:Some(from_wallet),
+            to_wallet:None,
+            timestamp: timestamp_generator(),
+            fee: Vec::new(),
+            memo:"Withdraw".to_string(),
             hash_chain: None,
             block: None,
             confirmations: Vec::new(),
@@ -213,8 +264,8 @@ impl Transaction {
         full_string.push_str(&self.transaction_status.to_string());
         full_string.push_str(&self.asset);
         full_string.push_str(&self.amount.to_string());
-        full_string.push_str(&self.from_wallet);
-        full_string.push_str(&self.to_wallet);
+        full_string.push_str(&self.from_wallet.clone().unwrap_or("Deposit".to_string()));
+        full_string.push_str(&self.to_wallet.clone().unwrap_or("Withdrawal".to_string()));
         full_string.push_str(&self.timestamp);
         full_string.push_str(&fee_string);
         full_string.push_str(&self.memo);

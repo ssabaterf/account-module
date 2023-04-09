@@ -61,6 +61,9 @@ impl FungibleTradeable for Fiat {
         if amount < 0.0 {
             return Err("Amount must be positive".to_string());
         }
+        if self.balance < amount {
+            return Err("Insufficient balance".to_string());
+        }
         self.balance -= amount;
         self.hold += amount;
         Ok(())
@@ -68,6 +71,9 @@ impl FungibleTradeable for Fiat {
     fn confirm_deposit(&mut self, amount: f64)->Result<(),String> {
         if amount < 0.0 {
             return Err("Amount must be positive".to_string());
+        }
+        if self.hold < amount {
+            return Err("Insufficient funds in hold".to_string());
         }
         self.hold -= amount;
         self.balance += amount;
@@ -77,6 +83,9 @@ impl FungibleTradeable for Fiat {
         if amount < 0.0 {
             return Err("Amount must be positive".to_string());
         }
+        if self.hold < amount {
+            return Err("Insufficient funds in hold".to_string());
+        }
         self.hold -= amount;
         Ok(())
     }
@@ -84,12 +93,18 @@ impl FungibleTradeable for Fiat {
         if amount < 0.0 {
             return Err("Amount must be positive".to_string());
         }
+        if self.hold < amount {
+            return Err("Insufficient funds in hold".to_string());
+        }
         self.hold -= amount;
         Ok(())
     }
     fn cancel_withdraw(&mut self, amount: f64)->Result<(),String> {
         if amount < 0.0 {
             return Err("Amount must be positive".to_string());
+        }
+        if self.hold < amount {
+            return Err("Insufficient balance".to_string());
         }
         self.hold -= amount;
         self.balance += amount;
@@ -116,6 +131,7 @@ impl Crypto {
         }
         let mut id = "".to_string();
         id.push_str(&account_id);
+        id.push('_');
         id.push_str(&asset.symbol);
         match asset.asset_type {
             AssetType::Crypto => Ok(Crypto {
@@ -149,6 +165,9 @@ impl FungibleTradeable for Crypto {
         if amount < 0.0 {
             return Err("Amount must be positive".to_string());
         }
+        if self.balance < amount {
+            return Err("Insufficient balance".to_string());
+        }
         self.balance -= amount;
         self.hold += amount;
         Ok(())
@@ -156,6 +175,9 @@ impl FungibleTradeable for Crypto {
     fn confirm_deposit(&mut self, amount: f64)->Result<(),String> {
         if amount < 0.0 {
             return Err("Amount must be positive".to_string());
+        }
+        if self.hold < amount {
+            return Err("Insufficient funds in hold".to_string());
         }
         self.hold -= amount;
         self.balance += amount;
@@ -165,6 +187,9 @@ impl FungibleTradeable for Crypto {
         if amount < 0.0 {
             return Err("Amount must be positive".to_string());
         }
+        if self.hold < amount {
+            return Err("Insufficient funds in hold".to_string());
+        }
         self.hold -= amount;
         Ok(())
     }
@@ -172,12 +197,18 @@ impl FungibleTradeable for Crypto {
         if amount < 0.0 {
             return Err("Amount must be positive".to_string());
         }
+        if self.hold < amount {
+            return Err("Insufficient funds in hold".to_string());
+        }
         self.hold -= amount;
         Ok(())
     }
     fn cancel_withdraw(&mut self, amount: f64)->Result<(),String> {
         if amount < 0.0 {
             return Err("Amount must be positive".to_string());
+        }
+        if self.hold < amount {
+            return Err("Insufficient balance".to_string());
         }
         self.hold -= amount;
         self.balance += amount;

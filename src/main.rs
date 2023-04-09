@@ -77,8 +77,12 @@ pub fn unauthorized() -> Json<ErrorResponse> {
 
 #[catch(404)]
 pub fn not_found(_req: &Request) -> Json<ErrorResponse> {
+    println!("{}",_req);
+    let content_type = _req.headers().get_one("content-type").unwrap_or("unknown/type");
+    let mut message = "Endpoint not found ".to_string();
+    message.push_str(content_type);
     Json(ErrorResponse { cause: "NOT FOUND".to_string(), 
-    message: "Endpoint not found".to_string(),
+    message,
     date: Local::now().format("%Y-%m-%d %H:%M:%S").to_string() })
 }
 

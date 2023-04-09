@@ -533,28 +533,38 @@ async fn cancel_tx<
     asset: Asset,
     mut transaction: Transaction,
 ) -> Result<Transaction, String> {
-    let mut id_from = transaction.from_wallet.clone();
-    let mut id_to = transaction.to_wallet.clone();
-    id_from.push('_');
-    id_from.push_str(&asset.symbol);
-    id_to.push('_');
-    id_to.push_str(&asset.symbol);
-    match get_accounts(ledger_db, &id_from, &id_to).await {
-        Ok((mut from, mut to)) => {
-            from.confirm_deposit(transaction.total_amount)?;
-            to.confirm_withdraw(transaction.total_amount)?;
-            ledger_db.update_by_id(&id_from, from).await?;
-            ledger_db.update_by_id(&id_to, to).await?;
-            transaction.cancel_transaction()?;
-            match transaction_db
-                .update_by_id(&transaction.tx_id, transaction.clone())
-                .await
-            {
-                Ok(_) => Ok(transaction),
-                Err(e) => Err(e),
+    if transaction.transaction_type == TransactionType::Transfer {
+        let mut id_from = match transaction.from_wallet.clone() {
+            Some(wallet) => wallet,
+            None => return Err("Invalid transaction".to_string()),
+        };
+        let mut id_to = match transaction.to_wallet.clone() {
+            Some(wallet) => wallet,
+            None => return Err("Invalid transaction".to_string()),
+        };
+        id_from.push('_');
+        id_from.push_str(&asset.symbol);
+        id_to.push('_');
+        id_to.push_str(&asset.symbol);
+        match get_accounts(ledger_db, &id_from, &id_to).await {
+            Ok((mut from, mut to)) => {
+                from.confirm_deposit(transaction.total_amount)?;
+                to.confirm_withdraw(transaction.total_amount)?;
+                ledger_db.update_by_id(&id_from, from).await?;
+                ledger_db.update_by_id(&id_to, to).await?;
+                transaction.cancel_transaction()?;
+                match transaction_db
+                    .update_by_id(&transaction.tx_id, transaction.clone())
+                    .await
+                {
+                    Ok(_) => Ok(transaction),
+                    Err(e) => Err(e),
+                }
             }
+            Err(e) => Err(e),
         }
-        Err(e) => Err(e),
+    } else {
+        Err("Wrong transaction type".to_string())
     }
 }
 
@@ -566,28 +576,38 @@ async fn fail_tx<
     asset: Asset,
     mut transaction: Transaction,
 ) -> Result<Transaction, String> {
-    let mut id_from = transaction.from_wallet.clone();
-    let mut id_to = transaction.to_wallet.clone();
-    id_from.push('_');
-    id_from.push_str(&asset.symbol);
-    id_to.push('_');
-    id_to.push_str(&asset.symbol);
-    match get_accounts(ledger_db, &id_from, &id_to).await {
-        Ok((mut from, mut to)) => {
-            from.confirm_deposit(transaction.total_amount)?;
-            to.confirm_withdraw(transaction.total_amount)?;
-            ledger_db.update_by_id(&id_from, from).await?;
-            ledger_db.update_by_id(&id_to, to).await?;
-            transaction.fail_transaction()?;
-            match transaction_db
-                .update_by_id(&transaction.tx_id, transaction.clone())
-                .await
-            {
-                Ok(_) => Ok(transaction),
-                Err(e) => Err(e),
+    if transaction.transaction_type == TransactionType::Transfer {
+        let mut id_from = match transaction.from_wallet.clone() {
+            Some(wallet) => wallet,
+            None => return Err("Invalid transaction".to_string()),
+        };
+        let mut id_to = match transaction.to_wallet.clone() {
+            Some(wallet) => wallet,
+            None => return Err("Invalid transaction".to_string()),
+        };
+        id_from.push('_');
+        id_from.push_str(&asset.symbol);
+        id_to.push('_');
+        id_to.push_str(&asset.symbol);
+        match get_accounts(ledger_db, &id_from, &id_to).await {
+            Ok((mut from, mut to)) => {
+                from.confirm_deposit(transaction.total_amount)?;
+                to.confirm_withdraw(transaction.total_amount)?;
+                ledger_db.update_by_id(&id_from, from).await?;
+                ledger_db.update_by_id(&id_to, to).await?;
+                transaction.fail_transaction()?;
+                match transaction_db
+                    .update_by_id(&transaction.tx_id, transaction.clone())
+                    .await
+                {
+                    Ok(_) => Ok(transaction),
+                    Err(e) => Err(e),
+                }
             }
+            Err(e) => Err(e),
         }
-        Err(e) => Err(e),
+    } else {
+        Err("Wrong transaction type".to_string())
     }
 }
 async fn confirm_tx<
@@ -599,24 +619,34 @@ async fn confirm_tx<
     mut transaction: Transaction,
     id_confirmer: String,
 ) -> Result<Transaction, String> {
-    let mut id_from = transaction.from_wallet.clone();
-    let mut id_to = transaction.to_wallet.clone();
-    id_from.push('_');
-    id_from.push_str(&asset.symbol);
-    id_to.push('_');
-    id_to.push_str(&asset.symbol);
-    match get_accounts(ledger_db, &id_from, &id_to).await {
-        Ok(_) => {
-            transaction.confirm_transaction(id_confirmer)?;
-            match transaction_db
-                .update_by_id(&transaction.tx_id, transaction.clone())
-                .await
-            {
-                Ok(_) => Ok(transaction),
-                Err(e) => Err(e),
+    if transaction.transaction_type == TransactionType::Transfer {
+        let mut id_from = match transaction.from_wallet.clone() {
+            Some(wallet) => wallet,
+            None => return Err("Invalid transaction".to_string()),
+        };
+        let mut id_to = match transaction.to_wallet.clone() {
+            Some(wallet) => wallet,
+            None => return Err("Invalid transaction".to_string()),
+        };
+        id_from.push('_');
+        id_from.push_str(&asset.symbol);
+        id_to.push('_');
+        id_to.push_str(&asset.symbol);
+        match get_accounts(ledger_db, &id_from, &id_to).await {
+            Ok(_) => {
+                transaction.confirm_transaction(id_confirmer)?;
+                match transaction_db
+                    .update_by_id(&transaction.tx_id, transaction.clone())
+                    .await
+                {
+                    Ok(_) => Ok(transaction),
+                    Err(e) => Err(e),
+                }
             }
+            Err(e) => Err(e),
         }
-        Err(e) => Err(e),
+    } else {
+        Err("Wrong transaction type".to_string())
     }
 }
 async fn complete_tx<
@@ -628,28 +658,38 @@ async fn complete_tx<
     mut transaction: Transaction,
     id_confirmer: String,
 ) -> Result<Transaction, String> {
-    let mut id_from = transaction.from_wallet.clone();
-    let mut id_to = transaction.to_wallet.clone();
-    id_from.push('_');
-    id_from.push_str(&asset.symbol);
-    id_to.push('_');
-    id_to.push_str(&asset.symbol);
-    match get_accounts(ledger_db, &id_from, &id_to).await {
-        Ok((mut from, mut to)) => {
-            from.confirm_withdraw(transaction.total_amount)?;
-            to.confirm_deposit(transaction.amount)?;
-            ledger_db.update_by_id(&id_from, from).await?;
-            ledger_db.update_by_id(&id_to, to).await?;
-            transaction.complete_transaction(id_confirmer)?;
-            match transaction_db
-                .update_by_id(&transaction.tx_id, transaction.clone())
-                .await
-            {
-                Ok(_) => Ok(transaction),
-                Err(e) => Err(e),
+    if transaction.transaction_type == TransactionType::Transfer {
+        let mut id_from = match transaction.from_wallet.clone() {
+            Some(wallet) => wallet,
+            None => return Err("Invalid transaction".to_string()),
+        };
+        let mut id_to = match transaction.to_wallet.clone() {
+            Some(wallet) => wallet,
+            None => return Err("Invalid transaction".to_string()),
+        };
+        id_from.push('_');
+        id_from.push_str(&asset.symbol);
+        id_to.push('_');
+        id_to.push_str(&asset.symbol);
+        match get_accounts(ledger_db, &id_from, &id_to).await {
+            Ok((mut from, mut to)) => {
+                from.confirm_withdraw(transaction.total_amount)?;
+                to.confirm_deposit(transaction.amount)?;
+                ledger_db.update_by_id(&id_from, from).await?;
+                ledger_db.update_by_id(&id_to, to).await?;
+                transaction.complete_transaction(id_confirmer)?;
+                match transaction_db
+                    .update_by_id(&transaction.tx_id, transaction.clone())
+                    .await
+                {
+                    Ok(_) => Ok(transaction),
+                    Err(e) => Err(e),
+                }
             }
+            Err(e) => Err(e),
         }
-        Err(e) => Err(e),
+    } else {
+        Err("Wrong transaction type".to_string())
     }
 }
 async fn process_tx<
@@ -664,8 +704,7 @@ async fn process_tx<
 ) -> Result<Transaction, String> {
     match get_accounts(ledger_db, id_from, id_to).await {
         Ok((mut from, mut to)) => {
-            let mut transaction = Transaction::new(
-                TransactionType::Transfer,
+            let mut transaction = Transaction::new_transfer(
                 asset.symbol,
                 req.amount,
                 from.get_account_number(),

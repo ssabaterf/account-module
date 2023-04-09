@@ -1,6 +1,6 @@
 use rocket::{State, http::Status, serde::json::Json, post, get};
 
-use crate::{domain::{account::Account, ledger::{Crypto, FungibleTradeable}, asset::AssetManager}, mongo::{Repository, Crud}, response::error::ErrorResponse, dto::deposit::Deposit};
+use crate::{domain::{account::Account, ledger::{Crypto, FungibleTradeable}, asset::AssetManager, transaction::Transaction}, mongo::{Repository, Crud}, response::error::ErrorResponse, dto::deposit::{Deposit, DepositCreation, DepositConfirmation, Withdrawal, WithdrawalCreation, WithdrawalConfirmation}};
 
 #[post("/<id>/ledgers/<symbol>", format = "json")]
 pub async fn create_crypto(
@@ -60,48 +60,72 @@ pub async fn crypto_deposit(
     id: String,
     deposit: Json<Deposit>,
     account_db: &State<Repository<Account>>,
+    transaction_db: &State<Repository<Transaction>>,
     crypto_db: &State<Repository<Crypto>>,
-) -> Result<Json<Crypto>, (Status, Json<ErrorResponse>)> {
+) -> Result<Json<DepositCreation<Crypto>>,  (Status, Json<ErrorResponse>)> {
     match account_db.get_by_id(&id).await {
         Ok(account) => account,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-    let mut crypto = match crypto_db.get_by_id(&id).await {
+    let mut id_ledger = id.clone();
+    id_ledger.push('_');
+    id_ledger.push_str(&deposit.symbol);
+    let mut crypto = match crypto_db.get_by_id(&id_ledger).await {
         Ok(crypto) => crypto,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
+    let tx_deposit = Transaction::new_deposit(deposit.symbol.clone(), deposit.amount, id.clone(), 1);
     match crypto.deposit(deposit.amount){
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-
     match crypto_db.update_by_id(&crypto.id, crypto.clone()).await {
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-    Ok(Json(crypto))
+    let tx = match transaction_db.create(tx_deposit).await {
+        Ok(tx) => tx,
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
+    };
+    Ok(Json(DepositCreation{account: crypto, tx_id: tx}))
 }
 
-#[post("/<id>/confirm", format = "json", data = "<deposit>")]
+#[post("/<id>/deposit/<tx_id>/confirm", format = "json", data = "<confirmation>")]
 pub async fn crypto_confirm_deposit(
     id: String,
-    deposit: Json<Deposit>,
+    tx_id: String,
+    confirmation: Json<DepositConfirmation>,
     account_db: &State<Repository<Account>>,
+    transaction_db: &State<Repository<Transaction>>,
     crypto_db: &State<Repository<Crypto>>,
 ) -> Result<Json<Crypto>, (Status, Json<ErrorResponse>)> {
     match account_db.get_by_id(&id).await {
         Ok(account) => account,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-    let mut crypto = match crypto_db.get_by_id(&id).await {
+    let mut tx = match transaction_db.get_by_id(&tx_id).await{
+        Ok(tx) => tx,
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
+    };
+    let mut id_ledger = id.clone();
+    id_ledger.push('_');
+    id_ledger.push_str(&tx.asset);
+    let mut crypto = match crypto_db.get_by_id(&id_ledger).await {
         Ok(crypto) => crypto,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-    match crypto.confirm_deposit(deposit.amount){
+    match crypto.confirm_deposit(tx.amount){
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-
+    match tx.confirm_transaction(id){
+        Ok(_) => (),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
+    };
+    match tx.complete_transaction(confirmation.external_id.clone()){
+        Ok(_) => (),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
+    };
     match crypto_db.update_by_id(&crypto.id, crypto.clone()).await {
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
@@ -109,54 +133,83 @@ pub async fn crypto_confirm_deposit(
     Ok(Json(crypto))
 }
 
-#[post("/<id>/withdrawal", format = "json", data = "<deposit>")]
+#[post("/<id>/withdrawal", format = "json", data = "<withdrawal>")]
 pub async fn crypto_withdrawal(
     id: String,
-    deposit: Json<Deposit>,
+    withdrawal: Json<Withdrawal>,
+    transaction_db: &State<Repository<Transaction>>,
     account_db: &State<Repository<Account>>,
     crypto_db: &State<Repository<Crypto>>,
-) -> Result<Json<Crypto>, (Status, Json<ErrorResponse>)> {
+) -> Result<Json<WithdrawalCreation<Crypto>>, (Status, Json<ErrorResponse>)> {
     match account_db.get_by_id(&id).await {
         Ok(account) => account,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-    let mut crypto = match crypto_db.get_by_id(&id).await {
+    let mut id_ledger = id.clone();
+    id_ledger.push('_');
+    id_ledger.push_str(&withdrawal.symbol);
+    let mut crypto = match crypto_db.get_by_id(&id_ledger).await {
         Ok(crypto) => crypto,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-    match crypto.withdraw(deposit.amount){
+    let mut tx = Transaction::new_withdraw(withdrawal.symbol.clone(), withdrawal.amount, id.clone(), 1);
+    tx.add_fee("Withdrawal".to_string(), tx.amount * 0.01);
+    match crypto.withdraw(tx.total_amount){
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-
     match crypto_db.update_by_id(&crypto.id, crypto.clone()).await {
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-    Ok(Json(crypto))
+    let tx = match transaction_db.create(tx).await {
+        Ok(tx) => tx,
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
+    };
+    Ok(Json(WithdrawalCreation{account: crypto, tx_id: tx}))
 }
 
-#[post("/<id>/release", format = "json", data = "<deposit>")]
+#[post("/<id>/withdraw/<tx_id>/release", format = "json", data = "<confirmation>")]
 pub async fn crypto_release_withdrawal(
     id: String,
-    deposit: Json<Deposit>,
+    tx_id: String,
+    confirmation: Json<WithdrawalConfirmation>,
     account_db: &State<Repository<Account>>,
+    transaction_db: &State<Repository<Transaction>>,
     crypto_db: &State<Repository<Crypto>>,
 ) -> Result<Json<Crypto>, (Status, Json<ErrorResponse>)> {
     match account_db.get_by_id(&id).await {
         Ok(account) => account,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-    let mut crypto = match crypto_db.get_by_id(&id).await {
+    let mut tx = match transaction_db.get_by_id(&tx_id).await {
+        Ok(tx) => tx,
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
+    };
+    let mut id_ledger = id.clone();
+    id_ledger.push('_');
+    id_ledger.push_str(&tx.asset);
+    let mut crypto = match crypto_db.get_by_id(&id_ledger).await {
         Ok(crypto) => crypto,
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-    match crypto.confirm_withdraw(deposit.amount){
+    match crypto.confirm_withdraw(tx.total_amount){
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
-
+    match tx.confirm_transaction(id){
+        Ok(tx) => tx,
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
+    };
+    match tx.complete_transaction(confirmation.external_id.clone()){
+        Ok(tx) => tx,
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
+    };
     match crypto_db.update_by_id(&crypto.id, crypto.clone()).await {
+        Ok(_) => (),
+        Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
+    };
+    match transaction_db.update_by_id(&tx.tx_id.clone(), tx).await {
         Ok(_) => (),
         Err(e) => return Err((Status::BadRequest, Json(ErrorResponse::new("Crypto".to_string(), e)))),
     };
