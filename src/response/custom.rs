@@ -1,6 +1,7 @@
+use revolt_rocket_okapi::JsonSchema;
 use serde::Serialize;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, JsonSchema)]
 pub struct Pagination<T>{
     pub skip: u64,
     pub limit: u64,

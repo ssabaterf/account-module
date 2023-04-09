@@ -1,8 +1,10 @@
+use revolt_rocket_okapi::openapi;
 use rocket::{State, http::Status, serde::json::Json, post, get};
 
 use crate::{domain::{account::Account, ledger::{Fiat, FungibleTradeable}, asset::AssetManager, transaction::Transaction}, mongo::{Repository, Crud}, response::error::ErrorResponse, dto::deposit::{Deposit, DepositCreation, DepositConfirmation, Withdrawal, WithdrawalCreation, WithdrawalConfirmation}};
 
-#[post("/<id>/ledgers/<symbol>", format = "json")]
+#[openapi(tag = "Cryptos")]
+#[post("/fiats/<id>/ledgers/<symbol>", format = "json")]
 pub async fn create_fiat(
     id: String,
     symbol: String,
@@ -34,7 +36,8 @@ pub async fn create_fiat(
     Ok(Json(fiat))
 }
 
-#[get("/<id>/ledgers/<symbol>")]
+#[openapi(tag = "Cryptos")]
+#[get("/fiats/<id>/ledgers/<symbol>")]
 pub async fn get_fiat(
     id: String,
     symbol: String,
@@ -55,7 +58,8 @@ pub async fn get_fiat(
     Ok(Json(fiat))
 }
 
-#[post("/<id>/deposit", format = "json", data = "<deposit>")]
+#[openapi(tag = "Cryptos")]
+#[post("/fiats/<id>/deposit", format = "json", data = "<deposit>")]
 pub async fn fiat_deposit(
     id: String,
     deposit: Json<Deposit>,
@@ -90,7 +94,8 @@ pub async fn fiat_deposit(
     Ok(Json(DepositCreation{account: fiat, tx_id: tx.tx_id}))
 }
 
-#[post("/<id>/deposit/<tx_id>/confirm", format = "json", data="<confirmation>")]
+#[openapi(tag = "Cryptos")]
+#[post("/fiats/<id>/deposit/<tx_id>/confirm", format = "json", data="<confirmation>")]
 pub async fn fiat_confirm_deposit(
     id: String,
     tx_id: String,
@@ -137,7 +142,8 @@ pub async fn fiat_confirm_deposit(
     Ok(Json(fiat))
 }
 
-#[post("/<id>/withdrawal", format = "json", data = "<withdrawal>")]
+#[openapi(tag = "Cryptos")]
+#[post("/fiats/<id>/withdrawal", format = "json", data = "<withdrawal>")]
 pub async fn fiat_withdrawal(
     id: String,
     withdrawal: Json<Withdrawal>,
@@ -178,7 +184,8 @@ pub async fn fiat_withdrawal(
     Ok(Json(WithdrawalCreation{account: fiat, tx_id: tx.tx_id}))
 }
 
-#[post("/<id>/withdraw/<tx_id>/release", format = "json", data = "<confirmation>")]
+#[openapi(tag = "Cryptos")]
+#[post("/fiats/<id>/withdraw/<tx_id>/release", format = "json", data = "<confirmation>")]
 pub async fn fiat_release_withdrawal(
     id: String,
     tx_id: String,

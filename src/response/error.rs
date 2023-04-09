@@ -1,7 +1,8 @@
 use chrono::{Utc};
+use revolt_rocket_okapi::JsonSchema;
 use serde::Serialize;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, JsonSchema)]
 pub struct ErrorResponse {
     pub(crate) cause: String,
     pub(crate) message: String,

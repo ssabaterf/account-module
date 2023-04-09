@@ -1,3 +1,4 @@
+use revolt_rocket_okapi::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::asset::{Asset, AssetType};
@@ -13,7 +14,7 @@ pub trait FungibleTradeable {
     fn cancel_deposit(&mut self, amount: f64)->Result<(),String>;
     fn cancel_withdraw(&mut self, amount: f64)->Result<(),String>;
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Fiat {
     pub id: String,
     pub account_number: String,
@@ -113,7 +114,7 @@ impl FungibleTradeable for Fiat {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Crypto {
     pub id: String,
     pub account_number: String,

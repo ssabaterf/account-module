@@ -1,8 +1,10 @@
+use revolt_rocket_okapi::openapi;
 use rocket::{State, http::Status, serde::json::Json, post, get};
 
 use crate::{domain::{account::Account, ledger::{Crypto, FungibleTradeable}, asset::AssetManager, transaction::Transaction}, mongo::{Repository, Crud}, response::error::ErrorResponse, dto::deposit::{Deposit, DepositCreation, DepositConfirmation, Withdrawal, WithdrawalCreation, WithdrawalConfirmation}};
 
-#[post("/<id>/ledgers/<symbol>", format = "json")]
+#[openapi(tag = "Fiats")]
+#[post("/cryptos/<id>/ledgers/<symbol>", format = "json")]
 pub async fn create_crypto(
     id: String,
     symbol: String,
@@ -34,7 +36,8 @@ pub async fn create_crypto(
     Ok(Json(crypto))
 }
 
-#[get("/<id>/ledgers/<symbol>")]
+#[openapi(tag = "Fiats")]
+#[get("/cryptos/<id>/ledgers/<symbol>")]
 pub async fn get_crypto(
     id: String,
     symbol: String,
@@ -55,7 +58,8 @@ pub async fn get_crypto(
     Ok(Json(crypto))
 }
 
-#[post("/<id>/deposit", format = "json", data = "<deposit>")]
+#[openapi(tag = "Fiats")]
+#[post("/cryptos/<id>/deposit", format = "json", data = "<deposit>")]
 pub async fn crypto_deposit(
     id: String,
     deposit: Json<Deposit>,
@@ -90,7 +94,8 @@ pub async fn crypto_deposit(
     Ok(Json(DepositCreation{account: crypto, tx_id: tx.tx_id}))
 }
 
-#[post("/<id>/deposit/<tx_id>/confirm", format = "json", data = "<confirmation>")]
+#[openapi(tag = "Fiats")]
+#[post("/cryptos/<id>/deposit/<tx_id>/confirm", format = "json", data = "<confirmation>")]
 pub async fn crypto_confirm_deposit(
     id: String,
     tx_id: String,
@@ -133,7 +138,8 @@ pub async fn crypto_confirm_deposit(
     Ok(Json(crypto))
 }
 
-#[post("/<id>/withdrawal", format = "json", data = "<withdrawal>")]
+#[openapi(tag = "Fiats")]
+#[post("/cryptos/<id>/withdrawal", format = "json", data = "<withdrawal>")]
 pub async fn crypto_withdrawal(
     id: String,
     withdrawal: Json<Withdrawal>,
@@ -169,7 +175,8 @@ pub async fn crypto_withdrawal(
     Ok(Json(WithdrawalCreation{account: crypto, tx_id: tx.tx_id}))
 }
 
-#[post("/<id>/withdraw/<tx_id>/release", format = "json", data = "<confirmation>")]
+#[openapi(tag = "Fiats")]
+#[post("/cryptos/<id>/withdraw/<tx_id>/release", format = "json", data = "<confirmation>")]
 pub async fn crypto_release_withdrawal(
     id: String,
     tx_id: String,

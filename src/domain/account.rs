@@ -1,19 +1,20 @@
 
 use rand::{distributions::Alphanumeric, Rng};
+use revolt_rocket_okapi::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Borrow, collections::HashMap};
 
 use crate::domain::{asset::{AssetManager, AssetType, Asset}};
 
 use super::ledger::{Crypto, Fiat};
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Balance {
     pub asset: String,
     pub balance: f64,
     pub hold: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Account {
     pub account_number: String,
     pub accounts_fiat: HashMap<String, String>,

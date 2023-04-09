@@ -2,10 +2,11 @@ use std::{time::SystemTime, fmt::Display};
 
 use chrono::{DateTime, Utc};
 use rand::{distributions::Alphanumeric, Rng};
+use revolt_rocket_okapi::JsonSchema;
 use serde::{Serialize, Deserialize};
 use sha2::Digest;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub enum TransactionType {
     Deposit,
     Withdraw,
@@ -22,7 +23,7 @@ impl Display for TransactionType {
         }
     }
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub enum TransactionStatus {
     Pending,
     Confirmed,
@@ -41,24 +42,24 @@ impl Display for TransactionStatus {
         }
     }
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Confirmed {
     pub id_confirmer: String,
     pub timestamp: String,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct HashEvents {
     pub hash: String,
     pub timestamp: String,
     pub field_changed: String,
     pub value: String,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct FeeReason {
     pub reason: String,
     pub amount: f64,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Transaction {
     pub tx_id: String,
     pub external_id: Option<String>,

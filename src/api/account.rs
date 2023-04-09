@@ -1,10 +1,11 @@
 use std::collections::HashMap;
-
+use revolt_rocket_okapi::openapi;
 use rocket::{post, State, serde::json::Json, http::Status, get};
 
 use crate::{domain::{account::{Account, Balance}, ledger::{Fiat, Crypto}, asset::AssetManager}, mongo::{Repository, Crud}, response::{error::ErrorResponse, custom::Pagination}};
 
-#[post("/", format = "json")]
+#[openapi(tag = "Accounts")]
+#[post("/accounts", format = "json")]
 pub async fn create_account(
     account_db: &State<Repository<Account>>,
     fiat_db: &State<Repository<Fiat>>,
@@ -61,7 +62,8 @@ pub async fn create_account(
     Ok(Json(account))
 }
 
-#[get("/?<skip>&<limit>", format = "json")]
+#[openapi(tag = "Accounts")]
+#[get("/accounts?<skip>&<limit>", format = "json")]
 pub async fn get_accounts(
     account_db: &State<Repository<Account>>,
     skip: Option<usize>,
@@ -82,7 +84,8 @@ pub async fn get_accounts(
     Ok(Json(pagination))
 }
 
-#[get("/<id>", format = "json")]
+#[openapi(tag = "Accounts")]
+#[get("/accounts/<id>", format = "json")]
 pub async fn get_account(
     account_db: &State<Repository<Account>>,
     id: String,
@@ -94,7 +97,8 @@ pub async fn get_account(
     Ok(Json(account))
 }
 
-#[get("/<id>/disable", format = "json")]
+#[openapi(tag = "Accounts")]
+#[get("/accounts/<id>/disable", format = "json")]
 pub async fn disable_account(
     account_db: &State<Repository<Account>>,
     id: String,
@@ -111,7 +115,8 @@ pub async fn disable_account(
     Ok(Json(account))
 }
 
-#[get("/<id>/enable", format = "json")]
+#[openapi(tag = "Accounts")]
+#[get("/accounts/<id>/enable", format = "json")]
 pub async fn enable_account(
     account_db: &State<Repository<Account>>,
     id: String,
@@ -128,7 +133,8 @@ pub async fn enable_account(
     Ok(Json(account))
 }
 
-#[get("/<id>/fiats", format = "json")]
+#[openapi(tag = "Accounts")]
+#[get("/accounts/<id>/fiats", format = "json")]
 pub async fn get_fiats(
     id: String,
     fiat_db: &State<Repository<Fiat>>,
@@ -139,7 +145,8 @@ pub async fn get_fiats(
     }
 }
 
-#[get("/<id>/cryptos", format = "json")]
+#[openapi(tag = "Accounts")]
+#[get("/accounts/<id>/cryptos", format = "json")]
 pub async fn get_cryptos(
     id: String,
     crypto_db: &State<Repository<Crypto>>,
@@ -150,7 +157,8 @@ pub async fn get_cryptos(
     }
 }
 
-#[get("/<id>/balances", format = "json")]
+#[openapi(tag = "Accounts")]
+#[get("/accounts/<id>/balances", format = "json")]
 pub async fn balances(
     id: String,
     crypto_db: &State<Repository<Crypto>>,

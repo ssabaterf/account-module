@@ -1,4 +1,5 @@
 use mongodb::ClientSession;
+use revolt_rocket_okapi::openapi;
 use rocket::{
     http::Status,
     post,
@@ -18,7 +19,8 @@ use crate::{
     response::error::ErrorResponse,
 };
 
-#[post("/", format = "json", data = "<transaction>")]
+#[openapi(tag = "Transactions")]
+#[post("/transactions", format = "json", data = "<transaction>")]
 pub async fn submit_transaction(
     transaction: Json<TransactionRequest>,
     transaction_db: &State<Repository<Transaction>>,
@@ -119,7 +121,8 @@ pub async fn submit_transaction(
         }
     }
 }
-#[post("/<id>/confirm", format = "json")]
+#[openapi(tag = "Transactions")]
+#[post("/transactions/<id>/confirm", format = "json")]
 pub async fn confirm_transaction(
     id: String,
     transaction_db: &State<Repository<Transaction>>,
@@ -232,7 +235,8 @@ pub async fn confirm_transaction(
         }
     }
 }
-#[post("/<id>/complete", format = "json")]
+#[openapi(tag = "Transactions")]
+#[post("/transactions/<id>/complete", format = "json")]
 pub async fn complete_transaction(
     id: String,
     transaction_db: &State<Repository<Transaction>>,
@@ -345,7 +349,9 @@ pub async fn complete_transaction(
         }
     }
 }
-#[post("/<id>/fail", format = "json")]
+
+#[openapi(tag = "Transactions")]
+#[post("/transactions/<id>/fail", format = "json")]
 pub async fn fail_transaction(
     id: String,
     transaction_db: &State<Repository<Transaction>>,
@@ -453,7 +459,8 @@ pub async fn fail_transaction(
         },
     }
 }
-#[post("/<id>/cancel", format = "json")]
+#[openapi(tag = "Transactions")]
+#[post("/transactions/<id>/cancel", format = "json")]
 pub async fn cancel_transaction(
     id: String,
     transaction_db: &State<Repository<Transaction>>,
@@ -740,7 +747,7 @@ async fn process_tx<
 ) -> Result<Transaction, String> {
     match get_accounts(ledger_db, id_from, id_to).await {
         Ok((mut from, mut to)) => {
-            let mut transaction = Transaction::new_transfer(
+            let transaction = Transaction::new_transfer(
                 asset.symbol,
                 req.amount,
                 from.get_account_number(),
