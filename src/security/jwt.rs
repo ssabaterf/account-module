@@ -8,77 +8,53 @@ use std::env;
 
 use crate::{
     domain::{
-        account::Account,
         user::{Role, User},
     },
     dto::user::{RefreshToken, Token},
-    mongo::{Crud, Repository},
     response::error::ErrorResponse,
 };
 
 //encode prepare data
 pub async fn encode_token(
-    database: &Repository<User>,
-    resource_db: &Repository<Account>,
-    id: String,
+    user: &User,
+    resources: Vec<String>,
     password: String,
 ) -> Result<Json<Token>, (Status, Json<ErrorResponse>)> {
-    let user = database
-        .get_by_fields(vec!["email".to_string()], vec![id.clone()])
-        .await
-        .unwrap_or(vec![]);
-    if user.len() == 1 {
-        let resources: Vec<String> = resource_db
-            .get_by_fields(vec!["user_owner_id".to_string()], vec![user[0].id.clone()])
-            .await
-            .unwrap_or(vec![])
-            .iter()
-            .map(|acc| acc.account_number.clone())
-            .collect();
-        match verify(password, &user[0].password) {
-            Ok(true) => {
-                match encode_token_and_refresh(
-                    user[0].id.clone(),
-                    user[0].role.clone(),
-                    resources.join(","),
-                    get_jwt_secret().await,
-                    get_jwt_refresh().await,
-                    get_jwt_refresh_expiration().await,
-                    get_jwt_expiration().await,
-                ) {
-                    Ok(tokens) => Ok(Json(tokens)),
-                    Err(_) => Err((
-                        Status::InternalServerError,
-                        Json(ErrorResponse::new(
-                            "Error encoding token".to_string(),
-                            "Error encoding token".to_string(),
-                        )),
+    match verify(password, &user.password) {
+        Ok(true) => {
+            match encode_token_and_refresh(
+                user.id.clone(),
+                user.role.clone(),
+                resources.join(","),
+                get_jwt_secret().await,
+                get_jwt_refresh().await,
+                get_jwt_refresh_expiration().await,
+                get_jwt_expiration().await,
+            ) {
+                Ok(tokens) => Ok(Json(tokens)),
+                Err(_) => Err((
+                    Status::InternalServerError,
+                    Json(ErrorResponse::new(
+                        "Error encoding token".to_string(),
+                        "Error encoding token".to_string(),
                     )),
-                }
+                )),
             }
-            Ok(false) => Err((
-                Status::BadRequest,
-                Json(ErrorResponse::new(
-                    "Invalid password".to_string(),
-                    "Invalid password".to_string(),
-                )),
-            )),
-            Err(_) => Err((
-                Status::InternalServerError,
-                Json(ErrorResponse::new(
-                    "Error verifying password".to_string(),
-                    "Error verifying password".to_string(),
-                )),
-            )),
         }
-    } else {
-        Err((
+        Ok(false) => Err((
+            Status::BadRequest,
+            Json(ErrorResponse::new(
+                "Invalid password".to_string(),
+                "Invalid password".to_string(),
+            )),
+        )),
+        Err(_) => Err((
             Status::InternalServerError,
             Json(ErrorResponse::new(
-                "Error getting user".to_string(),
-                "Error getting user".to_string(),
+                "Error verifying password".to_string(),
+                "Error verifying password".to_string(),
             )),
-        ))
+        )),
     }
 }
 pub fn check_data_from_auth_header(auth_header: Option<&str>) -> Result<Vec<&str>, ()> {
@@ -99,44 +75,24 @@ pub fn check_data_from_auth_header(auth_header: Option<&str>) -> Result<Vec<&str
 }
 //encode prepare data
 pub async fn encode_token_by_refresh(
-    database: &Repository<User>,
-    resource_db: &Repository<Account>,
-    id: String,
+    user: &User,
+    resources: Vec<String>,
 ) -> Result<Json<Token>, (Status, Json<ErrorResponse>)> {
-    let user = database.get_by_id(&id).await;
-    match user {
-        Ok(user) => {
-            let resources: Vec<String> = resource_db
-                .get_by_fields(vec!["user_owner_id".to_string()], vec![user.id.clone()])
-                .await
-                .unwrap_or(vec![])
-                .iter()
-                .map(|acc| acc.account_number.clone())
-                .collect();
-            match encode_token_and_refresh(
-                user.id.clone(),
-                user.role.clone(),
-                resources.join(","),
-                get_jwt_secret().await,
-                get_jwt_refresh().await,
-                get_jwt_refresh_expiration().await,
-                get_jwt_expiration().await,
-            ) {
-                Ok(tokens) => Ok(Json(tokens)),
-                Err(_) => Err((
-                    Status::InternalServerError,
-                    Json(ErrorResponse::new(
-                        "Error encoding token".to_string(),
-                        "Error encoding token".to_string(),
-                    )),
-                )),
-            }
-        }
+    match encode_token_and_refresh(
+        user.id.clone(),
+        user.role.clone(),
+        resources.join(","),
+        get_jwt_secret().await,
+        get_jwt_refresh().await,
+        get_jwt_refresh_expiration().await,
+        get_jwt_expiration().await,
+    ) {
+        Ok(tokens) => Ok(Json(tokens)),
         Err(_) => Err((
             Status::InternalServerError,
             Json(ErrorResponse::new(
-                "Error getting user".to_string(),
-                "Error getting user".to_string(),
+                "Error encoding token".to_string(),
+                "Error encoding token".to_string(),
             )),
         )),
     }
@@ -146,7 +102,7 @@ pub async fn encode_token_by_refresh(
 pub async fn decode_jwt_return_id(refresh_token: Json<RefreshToken>) -> Result<String, ()> {
     match decode_jwt(
         refresh_token.refresh_token.to_string(),
-        &get_jwt_refresh().await,
+        get_jwt_refresh().await,
     ) {
         DecodeJwtHelper::Ok(token_data) => {
             let id_str = token_data.claims.user_id;
@@ -233,7 +189,7 @@ pub fn encode_jwt(
     expiration: &i64,
 ) -> EncodeJwtHelper {
     let expiration = Utc::now()
-        .checked_add_signed(chrono::Duration::seconds(expiration.clone()))
+        .checked_add_signed(chrono::Duration::seconds(*expiration))
         .expect("valid timestamp")
         .timestamp();
 
@@ -253,20 +209,20 @@ pub fn encode_jwt(
     }
 }
 lazy_static! {
-    static ref JWT_SECRET: String = {
-        env::var("JWT_SECRET").expect("Error loading env variable: JWT_SECRET")
-    };
-    static ref JWT_REFRESH: String = {
-        env::var("JWT_REFRESH").expect("Error loading env variable: JWT_REFRESH")
-    };
-    static ref JWT_EXPIRES_IN: i64 = {
-        env::var("JWT_EXPIRES_IN").expect("Error loading env variable: JWT_REFRESH")
-        .parse().expect("Error parsing env variable: JWT_REFRESH")
-    };
-    static ref JWT_REFRESH_EXPIRES_IN: i64 = {
-        env::var("JWT_REFRESH_EXPIRES_IN").expect("Error loading env variable: JWT_REFRESH_EXPIRES_IN")
-        .parse().expect("Error parsing env variable: JWT_REFRESH_EXPIRES_IN")
-    };
+    static ref JWT_SECRET: String =
+        env::var("JWT_SECRET").expect("Error loading env variable: JWT_SECRET");
+    static ref JWT_REFRESH: String =
+        env::var("JWT_REFRESH").expect("Error loading env variable: JWT_REFRESH");
+    static ref JWT_EXPIRES_IN: i64 =
+        env::var("JWT_EXPIRES_IN")
+            .expect("Error loading env variable: JWT_REFRESH")
+            .parse()
+            .expect("Error parsing env variable: JWT_REFRESH");
+    static ref JWT_REFRESH_EXPIRES_IN: i64 =
+        env::var("JWT_REFRESH_EXPIRES_IN")
+            .expect("Error loading env variable: JWT_REFRESH_EXPIRES_IN")
+            .parse()
+            .expect("Error parsing env variable: JWT_REFRESH_EXPIRES_IN");
 }
 
 pub async fn get_jwt_secret() -> &'static str {
